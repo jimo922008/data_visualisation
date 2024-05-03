@@ -1,4 +1,4 @@
-moduled initialisation 
+module initialisation 
 
 contains
     subroutine centre_of_mass()

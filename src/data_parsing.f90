@@ -1,4 +1,4 @@
-module input_output
+module data_parsing
 
   ! * Prerequisite modules
   use parameters
@@ -17,56 +17,65 @@ module input_output
   integer, public, allocatable, dimension(:)      :: n_points, n_points_max
 
   contains 
+    
+    program count_line
+        integer :: nlines
+        character(len=100) :: line
+        nlines=0
+
+        open 
+        do
+            read(stdin,'(a)',end=1001) line
+            nlines=nlines+1
+        end do
+        1001 continue
+        write(stdout,*) nlines
+    end program count_line
 
     subroutine read_vec()
 
-        integer :: ni,length,min_length
-        integer                       :: indx,stat,met2,met7
+        integer :: row, col, indx, stat, met2, met7
         character(len=50)             :: met1,met3,met4
         real(kind=dp)                 :: met5,met6
 
-        min_length=huge(1)
-
-        npoints=0
-        do ni=1,npoints_max
-
-        ! * Read length of vector, update minimum length if necessary
-
-        read(stdin,*,end=1001) length
-        if(length.lt.min_length) min_length=length
-        if(ni.eq.1) then
+        read(stdin,*) col
 
         allocate(
-            data_vec(min_length,npoints_max),
+            data_vec(row,nlines),
             ion_energy(npoints_max),
             ion_volume(npoints_max),
-            ion_label(npoints_max),&
+            ion_label(npoints_max),
             ion_symmetry(npoints_max),
             ion_formula(npoints_max),
             ion_num(npoints_max),
-            point_count(npoints_max))
+            point_count(npoints_max)
+        )
+
+        npoints=0
+        do ni=1,npoints_max
+        ! * Read length of vector, update minimum length
+
+            ! * Read descriptor vector
+            data_vec(:,ni)=0.0_dp
+            read(stdin,*) data_vec(1:min_length,ni)
+            npoints=npoints+1
+
+            ! * Read meta-data from .vec file
+            read(stdin,*) ion_label(ni),ion_num(ni),ion_formula(ni),ion_symmetry(ni),ion_volume(ni),ion_energy(ni),point_count(ni)
+
         end if
 
-        ! * Read descriptor vector
-        data_vec(:,ni)=0.0_dp
-        read(stdin,*) data_vec(1:min_length,ni)
-        npoints=npoints+1
-
-        ! * Read meta-data from .vec file
-
-        read(stdin,*) ion_label(ni),ion_num(ni),ion_formula(ni),ion_symmetry(ni),ion_volume(ni),ion_energy(ni),point_count(ni)
-
-        end if
         ion_volume(ni)=ion_volume(ni)/real(ion_num(ni),dp)
         ion_energy(ni)=ion_energy(ni)/real(ion_num(ni),dp)
         end do
+
         1001 continue
 
         if(npoints.eq.npoints_max) then
-        write(stderr,*) 'ERROR: number of points in .vec file exceeds maximum number allocated. Increase this with -np.'
+            write(stderr,*) 'ERROR: number of points in .vec file exceeds maximum number allocated. Increase this with -np.'
         end if
 
-        hdim=min_length
+        hdim= min_length
         allocate(point_pos(ldim,npoints),point_radius(npoints),dij2(npoints,npoints))
 
         total_point_count=sum(point_count(1:npoints))
@@ -119,4 +128,4 @@ module input_output
   
     end subroutine compute_ion_nn
 
-end module input_output
+end module data_parsing
