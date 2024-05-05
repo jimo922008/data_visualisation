@@ -1,4 +1,4 @@
-module parameters
+module constants
 
   ! * All variables must be declared
   implicit none
@@ -23,4 +23,4 @@ module parameters
   real(kind=dp), public, parameter, dimension(3,3) :: &
        ident=reshape((/1.0_dp,0.0_dp,0.0_dp,0.0_dp,1.0_dp,0.0_dp,0.0_dp,0.0_dp,1.0_dp/),(/3,3/))
 
-end module parameters
+end module constants
