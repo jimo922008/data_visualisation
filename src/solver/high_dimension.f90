@@ -1,4 +1,4 @@
-MODULE model
+MODULE high_dimension_distribution
 
     USE constants
     USE data_io
@@ -91,17 +91,17 @@ MODULE model
         integer, intent (in) :: i
         integer :: j
         real(dp), intent (in) :: sigma
-        real(dp), allocatable :: pj(:)
+        real(dp), allocatable :: pji(:)
 
-        allocate(pij(row_count, row_count))
+        allocate(pji(row_count))
 
-        write (stderr, *) 'calculating pij'
+        write (stderr, *) 'calculating pji'
 
-        do i = 1, row_count
-            pj(i) = exp(-distance(i,j)/(sigma^2*2.0_dp))
+        do j = 1, row_count
+            pji(j) = exp(-distance(i,j)/(sigma^2*2.0_dp))
         end do
 
-        pj(:) = pj(:) / sum(pj(:))
+        pji(:) = pji(:) / sum(pji(:))
 
     end function calculating_pji
 
