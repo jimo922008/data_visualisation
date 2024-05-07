@@ -1,36 +1,40 @@
-MODULE data_io
+MODULE data_reader
 
     USE constants
     
     IMPLICIT NONE
 
-    public :: read_vec, write_xyz
+    public :: read_file
 
-    type data_vector
-        real(kind=dp), dimension(:,:), allocatable  :: data_vec
-        real(kind=dp), dimension(:), allocatable    :: ion_energy, ion_volume
-        integer, dimension (:), allocatable         :: ion_num, point_count
-        character(len=*), dimension(:), allocatable :: ion_label, ion_symmetry, ion_formula
-        type(data_vector), pointer                  :: next => null()
-    end type data_vector
-
-    type(data_vector) :: vectors
+    real(kind=dp), dimension(:,:), allocatable  :: data_vec
+    real(kind=dp), dimension(:), allocatable    :: ion_energy, ion_volume
+    integer, dimension (:), allocatable         :: ion_num, point_count
+    character(len= 256), dimension(:), allocatable :: ion_label, ion_symmetry, ion_formula
         
-    integer, public, allocatable, dimension(:)      :: number_points, number_features
+    integer, public                             :: number_points, number_features
 
 contains 
 
-    subroutine read_vec(filename)
+    subroutine read_file(filename)
 
-        character(len=*) intent(in) :: filename
-        integer :: i, unit, stat,row, col, number_of_rows
+        character(len=*), intent(in) :: filename
+        integer :: i, unit, stat, row, col, number_of_rows
 
         ! * Open the file.
         open(newunit=unit, file=filename, status='old', action='read')
 
-        ! * Count the number of rows.
-        number_points=0
+        ! * Count the number of points.
+
         number_features=0
+
+        read(unit, *, iostat= stat) number_features
+        if (stat /= 0) then
+            print *, 'Error reading the number of features'
+            stop
+        end if
+
+        number_of_rows  = 1
+        number_points = 0
 
         do
             read(unit, *, iostat= stat) i
@@ -42,44 +46,34 @@ contains
 
         rewind(unit) 
         
-        ALLOCATE (
-            data_vec(number_points, number_features),
-            ion_energy(number_points),
-            ion_volume(number_points),
-            ion_label(number_points),
-            ion_symmetry(number_points),
-            ion_formula(number_points),
-            ion_num(number_points),
-            point_count(number_points)
-        )
+        allocate(data_vec(number_features, number_points), &
+        ion_energy(number_points), ion_volume(number_points), &
+        ion_label(number_points), ion_symmetry(number_points), &
+        ion_formula(number_points), ion_num(number_points), &
+        point_count(number_points))
 
         ! * Read the data into arrays. 
-        do row=1, number_points
+        do col=1, number_points
 
             ! * Read the column length for each row
-            read(stdin,*) number_features
+            read(unit,*) number_features
 
             ! * Read the data vector 
-            data_vec(:,row)= 0.0_dp
-            read(stdin,*) data_vec(1:col_count,row)
-            row = row + 1
+            data_vec(:,col)= 0.0_dp
+            read(unit,*) data_vec(1:number_features,col)
 
             ! * Read meta-data vector
-            read(stdin,*) ion_label(row),ion_num(row),ion_formula(row),ion_symmetry(row),ion_volume(row),ion_energy(row),point_count(row)
+            read(unit,*) ion_label(col),ion_num(col),ion_formula(col), &
+            ion_symmetry(col),ion_volume(col), &
+            ion_energy(col),point_count(col)
 
-            ion_volume(row)=ion_volume(row)/real(ion_num(row),dp)
-            ion_energy(row)=ion_energy(row)/real(ion_num(row),dp)
+            ion_volume(col)=ion_volume(col)/real(ion_num(col),dp)
+            ion_energy(col)=ion_energy(col)/real(ion_num(col),dp)
 
         end do
 
-        allocate(
-            point_pos(col_count,row_count),
-            point_radius(row_count),
-            dij2(row_count,row_count)
-        )
+        close(unit)
 
-        total_point_count=sum(point_count(1:row_count))
+    end subroutine read_file
 
-    end subroutine read_vec
-    
 end module data_reader

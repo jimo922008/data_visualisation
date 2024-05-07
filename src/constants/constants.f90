@@ -1,12 +1,7 @@
 module constants
 
-  ! * All variables must be declared
   implicit none
 
-  ! * All variables private unless declared public
-  private
-
-  ! * Public variables
   integer, public, parameter       :: dp=8 ! Single = 4 Double = 8 Quad = 16
   integer, public, parameter       :: stdin=5
   integer, public, parameter       :: stdout=6
