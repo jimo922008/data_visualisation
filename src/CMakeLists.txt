@@ -16,9 +16,15 @@ target_link_libraries(
     dataio_lib
     solver_lib
     timing_lib
-    data_sync_lib
     PUBLIC MPI::MPI_Fortran
     PUBLIC OpenMP::OpenMP_Fortran
 )
 
 
+target_include_directories(sheap
+                 PUBLIC
+                 ${NETCDF_INCLUDE_DIRS}
+                 ${CMAKE_BINARY_DIR}/src/constants
+                ${CMAKE_BINARY_DIR}/src/data_io
+                ${CMAKE_BINARY_DIR}/src/solver
+)

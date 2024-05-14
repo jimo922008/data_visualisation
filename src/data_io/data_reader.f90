@@ -18,10 +18,13 @@ contains
     subroutine read_file(filename)
 
         character(len=*), intent(in) :: filename
-        integer :: i, unit, stat, row, col, number_of_rows
+        integer :: unit, stat, row, col, number_of_rows
+        character(len=: ), allocatable :: line
 
-        ! * Open the file.
-        open(newunit=unit, file=filename, status='old', action='read')
+        ! * Open the file
+        open(newunit=unit, file=filename, status='old', action='read', iostat=stat)
+
+        print *, 'Reading file: ', filename
 
         ! * Count the number of points.
 
@@ -36,11 +39,16 @@ contains
         number_of_rows  = 1
         number_points = 0
 
+        allocate(character(len=number_features) :: line)
+
         do
-            read(unit, *, iostat= stat) i
-            if (stat /= 0) exit 
-            number_of_rows = number_of_rows +1
-        end do 
+            read(unit, *, iostat=stat) line
+            if (stat /= 0) then
+                exit  ! Exit the loop on EOF
+            else
+                number_of_rows = number_of_rows + 1
+            endif
+        end do
 
         number_points = number_of_rows/3
 
@@ -61,7 +69,7 @@ contains
             ! * Read the data vector 
             data_vec(:,col)= 0.0_dp
             read(unit,*) data_vec(1:number_features,col)
-
+            
             ! * Read meta-data vector
             read(unit,*) ion_label(col),ion_num(col),ion_formula(col), &
             ion_symmetry(col),ion_volume(col), &
@@ -71,7 +79,7 @@ contains
             ion_energy(col)=ion_energy(col)/real(ion_num(col),dp)
 
         end do
-
+        
         close(unit)
 
     end subroutine read_file

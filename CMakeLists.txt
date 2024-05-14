@@ -7,6 +7,7 @@ project(sheap
 
 set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -std=f2008")
 set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -ffree-line-length-none")
+
 enable_testing()
 
 # Compiler options for different build types
@@ -22,6 +23,5 @@ add_subdirectory(test)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/bin)
 
 install(TARGETS sheap DESTINATION bin)
-
 
 

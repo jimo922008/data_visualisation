@@ -1,108 +1,188 @@
-MODULE high_dimension_distribution
+MODULE high_dimension
 
     USE constants
-    USE data_io
+    USE data_reader
     USE initialisation
 
     IMPLICIT NONE
 
-    PRIVATE
+    PUBLIC :: high_dimension_distance
+    PUBLIC :: find_sigma
+    PUBLIC :: calculating_perplexity
+    PUBLIC :: calculating_pji
+    
+    real(dp):: perplexity, perplexity_target
+    real(dp), allocatable, dimension(:,:)   :: high_dist_matrix(:,:)
+    real(dp), allocatable, dimension(:)     :: sigma(:)
+    real(dp), allocatable, dimension(:,:)   :: pij(:,:)
+    
 
-    PUBLIC :: 
-
+contains
     subroutine high_dimension_distance()
-
+        implicit none
         integer :: i, j
-        real(dp), allocatable :: length_2(:)
-        real(dp), allocatable :: high_dimension_distance(:,:)
+        real(dp), allocatable, dimension(:)   :: length_2(:)
 
-        allocate(
-            length_2(row_count),
-            high_dimension_distance(row_count, row_count))
+        allocate(length_2(number_points), &
+        high_dist_matrix(number_points, number_points))
 
-        do i = 1, row_count
-            length_2(i) = dot_product(data_vec(1:col_count, i), data_vec(1:col_count, i))
+        do i = 1, number_points
+            length_2(i) = dot_product(data_vec(:, i), data_vec(:, i))
         end do
 
         write (stderr, *) 'calculating distance'
-        do i = 1, row_count
-            do j = i + 1, row_count
-                distance(i,j) = sqrt(length2(i) + length2(j) - 2.0_dp * dot_product(data_vec(1:col_count, i), data_vec(1:col_count, j)))
-                distance(j,i) = distance(i,j)  
+        do i = 1, number_points
+            do j = i + 1, number_points
+                high_dist_matrix(i,j) = sqrt(length_2(i) + length_2(j) - 2.0_dp * dot_product(data_vec(:, i), data_vec(:, j)))
+                high_dist_matrix(j,i) = high_dist_matrix(i,j)  
             end do
-            distance(i,i) = 0.0_dp  
+            high_dist_matrix(i,i) = 0.0_dp  
         end do
+        
+        deallocate(length_2)  
 
     end subroutine high_dimension_distance
 
-    subroutine find_sigma(i, sigma, perplexity)
-        integer, intent(in) :: i
+    subroutine find_sigma(perplexity)
+        implicit none
+    
         real(dp), intent(in) :: perplexity
-        real(dp), intent(out) :: sigma
-
         real(dp) :: low_sigma, high_sigma, mid_sigma
         real(dp) :: low_perplexity, high_perplexity, mid_perplexity
         real(dp) :: tolerance
-        integer :: iter, max_iter
+        integer  :: i, iter, max_iter
 
-        low_sigma = 1.0_dp
-        high_sigma = 10.0_dp
+        allocate(sigma(number_points))
+
         tolerance = 1.0e-5_dp
         max_iter = 1000
 
-        low_perplexity = calculating_perplexity(low_sigma, i)
-        high_perplexity = calculating_perplexity(high_sigma, i)
+        do i = 1, number_points
 
-        iter = 0
-        do while (iter < max_iter) .and. (abs(high_sigma - low_sigma) > tolerance)
-            mid_sigma = (low_sigma + high_sigma) / 2.0_dp
-            mid_perplexity = calculating_perplexity(mid_sigma, i)
+            low_sigma = 0.0001_dp
+            high_sigma = 1.0_dp
 
-            if (abs(mid_perplexity - perplexity) < tolerance) then
-                sigma = mid_sigma
-                return
-            end if
+            iter = 0
 
-            if (mid_perplexity > perplexity) then
-                high_sigma = mid_sigma
-            else
-                low_sigma = mid_sigma
-            end if
+            low_perplexity = calculating_perplexity(low_sigma, i)
+            high_perplexity = calculating_perplexity(high_sigma, i)
 
-            iter = iter + 1
+            do 
+                if (iter >= max_iter .or. abs(high_sigma - low_sigma) <= tolerance) exit
+
+                mid_sigma = (low_sigma + high_sigma) / 2.0_dp
+                mid_perplexity = calculating_perplexity(mid_sigma, i)
+
+                if (abs(mid_perplexity - perplexity) < tolerance) then
+                    sigma(i) = mid_sigma
+                    exit
+                end if
+
+                if (mid_perplexity > perplexity) then
+                    high_sigma = mid_sigma
+                else
+                    low_sigma = mid_sigma
+                end if
+
+                iter = iter + 1 
+            end do
+
+            sigma(i) = mid_sigma
         end do
-        if (abs(perplexity - low_perplexity) < tolerance) then
-            sigma = low_sigma
-            return
-        end if
+
+    end subroutine find_sigma
     
-    real(dp) function calculating_perplexity(i, sigma) 
+    function calculating_perplexity(sigma, i) result(perplexity)
         implicit none
-        integer, intent :: i
         real(dp), intent(in) :: sigma
-        real(dp) :: perplexity
-
-        perplexity = 2.0_dp ** (sum(-calculating_pji(i, sigma) * log(calculating_pji(i, sigma))) / log(2.0_dp))
-    end function
-
-
-    real(dp) function calculating_pji(i, sigma)
-            
         integer, intent (in) :: i
-        integer :: j
-        real(dp), intent (in) :: sigma
-        real(dp), allocatable :: pji(:)
+        integer              :: j
+        real(dp), allocatable, dimension(:) :: pji_conditional
+        real(dp)             :: entropy, perplexity
 
-        allocate(pji(row_count))
+        entropy = 0.0_dp
+        perplexity = 0.0_dp
 
-        write (stderr, *) 'calculating pji'
+        pji_conditional = calculating_pji(sigma,i)
 
-        do j = 1, row_count
-            pji(j) = exp(-distance(i,j)/(sigma^2*2.0_dp))
+        do j = 1, number_points
+            if (i == j) then
+                cycle
+            end if
+            if (pji_conditional(j) == 0.0_dp) then
+                cycle
+            end if
+            entropy = entropy + pji_conditional(j) * log(pji_conditional(j))
         end do
 
-        pji(:) = pji(:) / sum(pji(:))
+        perplexity = 2.0_dp ** (-entropy / log(2.0_dp))
+
+    end function calculating_perplexity
+
+    function calculating_pji(sigma,i) result(pji_conditional)
+        implicit none
+        real(kind=dp), allocatable, dimension(:) :: pji_conditional
+        real(kind=dp), intent(in) :: sigma
+        integer, intent (in) :: i
+        integer              :: j
+
+        allocate(pji_conditional(number_points))
+
+        do j = 1, number_points
+            pji_conditional(j) = exp(-high_dist_matrix(i,j)/(sigma*sigma*2.0_dp))
+            if (i == j) then
+                pji_conditional(j) = 0.0_dp
+            end if
+        end do
+
+        pji_conditional = pji_conditional / sum(pji_conditional)
 
     end function calculating_pji
 
-END MODULE model
+    function calculating_pij(sigma,j) result(pij_conditional)
+        implicit none
+        real(dp), allocatable, dimension(:) :: pij_conditional
+        real(kind=dp), intent(in) :: sigma
+        integer, intent (in) :: j
+        integer              :: i
+
+        allocate(pij_conditional(number_points))
+
+        do i = 1, number_points
+            pij_conditional(i) = exp(-high_dist_matrix(i,j)/(sigma*sigma*2.0_dp))
+            if (i == j) then
+                pij_conditional(i) = 0.0_dp
+            end if
+        end do
+    end function calculating_pij
+
+    subroutine high_dimension_distribution()
+        implicit none
+        integer :: i, j
+        real(kind=dp) :: pij_1
+        real(kind=dp) :: pji_1
+        
+        write (stderr, *) 'calculating high dimension distance......'
+
+        call high_dimension_distance()
+
+        write (stderr, *) 'finding sigma......'
+
+        call find_sigma(perplexity)
+
+        write (stderr, *) 'calculating pij.......'
+
+        allocate(pij(number_points, number_points))
+
+        do i = 1, number_points
+            do j = i+1, number_points
+                pij_1 = exp(-high_dist_matrix(i,j)/(sigma(j)*sigma(j)*2.0_dp))
+                pji_1 = exp(-high_dist_matrix(i,j)/(sigma(i)*sigma(i)*2.0_dp))
+                pij(i,j) = (pij_1+pji_1)/(2.0_dp*number_points)
+                pij(j,i) = pij(i,j)
+            end do
+            pij(i,i) = 0.0_dp
+        end do   
+    end subroutine high_dimension_distribution
+
+END MODULE high_dimension
