@@ -1,5 +1,6 @@
 MODULE high_dimension
 
+    USE omp_lib
     USE constants
     USE data_reader
     USE initialisation
@@ -18,6 +19,8 @@ MODULE high_dimension
     
 
 contains
+
+
     subroutine high_dimension_distance()
         implicit none
         integer :: i, j
@@ -30,14 +33,17 @@ contains
             length_2(i) = dot_product(data_vec(:, i), data_vec(:, i))
         end do
 
-        write (stderr, *) 'calculating distance'
+        !$omp parallel do private(j) schedule(dynamic)
         do i = 1, number_points
-            do j = i + 1, number_points
-                high_dist_matrix(i,j) = sqrt(length_2(i) + length_2(j) - 2.0_dp * dot_product(data_vec(:, i), data_vec(:, j)))
-                high_dist_matrix(j,i) = high_dist_matrix(i,j)  
+            do j = 1, number_points
+                high_dist_matrix(j,i) = length_2(i) + length_2(j) + 1e-10_dp
             end do
             high_dist_matrix(i,i) = 0.0_dp  
         end do
+        !$omp end parallel do
+
+        call dgemm('T','N',number_points,number_points,number_features,-2.0_dp,data_vec(1:number_features,1:number_points),&
+               number_features,data_vec(1:number_features,1:number_points),number_features,1.0_dp,high_dist_matrix,number_points)
         
         deallocate(length_2)  
 
@@ -49,46 +55,55 @@ contains
         real(dp), intent(in) :: perplexity
         real(dp) :: low_sigma, high_sigma, mid_sigma
         real(dp) :: low_perplexity, high_perplexity, mid_perplexity
-        real(dp) :: tolerance
-        integer  :: i, iter, max_iter
+        real(dp) :: tolerance, factor
+        integer  :: i
 
         allocate(sigma(number_points))
 
-        tolerance = 1.0e-5_dp
-        max_iter = 1000
+        tolerance = 1.0e-13_dp
 
+        !$omp parallel do private(i, high_sigma, high_perplexity, low_sigma, low_perplexity, factor, mid_sigma, mid_perplexity) schedule(dynamic)
         do i = 1, number_points
+            if (point_count(i) == 0) cycle
+        
+            factor = 2.0_dp
 
-            low_sigma = 0.0001_dp
             high_sigma = 1.0_dp
-
-            iter = 0
-
-            low_perplexity = calculating_perplexity(low_sigma, i)
             high_perplexity = calculating_perplexity(high_sigma, i)
 
-            do 
-                if (iter >= max_iter .or. abs(high_sigma - low_sigma) <= tolerance) exit
+            if (high_perplexity > perplexity) then
+                factor = 1.0_dp/factor
+            end if
+            
+            low_sigma = high_sigma * factor
+            low_perplexity = calculating_perplexity(low_sigma, i)
+
+            do while ((low_perplexity - perplexity)*(high_perplexity - perplexity) > 0.0_dp)
+                high_sigma = low_sigma 
+                high_perplexity = low_perplexity
+                low_sigma = low_sigma * factor
+                low_perplexity = calculating_perplexity(low_sigma, i)
+            end do
+            
+            mid_perplexity = huge(0.0_dp)
+            do while ((abs(high_sigma - low_sigma) > tolerance) .and. (abs(mid_perplexity - perplexity) > tolerance))
 
                 mid_sigma = (low_sigma + high_sigma) / 2.0_dp
+
+                if (mid_sigma == low_sigma .or. mid_sigma == high_sigma) exit
+
                 mid_perplexity = calculating_perplexity(mid_sigma, i)
 
-                if (abs(mid_perplexity - perplexity) < tolerance) then
-                    sigma(i) = mid_sigma
-                    exit
-                end if
-
-                if (mid_perplexity > perplexity) then
+                if ((mid_perplexity- perplexity)>0) then
                     high_sigma = mid_sigma
                 else
                     low_sigma = mid_sigma
                 end if
 
-                iter = iter + 1 
             end do
-
             sigma(i) = mid_sigma
         end do
+        !$omp end parallel do
 
     end subroutine find_sigma
     
@@ -106,16 +121,11 @@ contains
         pji_conditional = calculating_pji(sigma,i)
 
         do j = 1, number_points
-            if (i == j) then
-                cycle
-            end if
-            if (pji_conditional(j) == 0.0_dp) then
-                cycle
-            end if
-            entropy = entropy + pji_conditional(j) * log(pji_conditional(j))
+            if ((i == j) .or. (point_count(j) == 0.0_dp) .or. (pji_conditional(j)<tiny(1.0_dp))) cycle
+            entropy = entropy + pji_conditional(j) * log(pji_conditional(j))/ log(2.0_dp)
         end do
 
-        perplexity = 2.0_dp ** (-entropy / log(2.0_dp))
+        perplexity = 2.0_dp**(-entropy)
 
     end function calculating_perplexity
 
@@ -129,32 +139,13 @@ contains
         allocate(pji_conditional(number_points))
 
         do j = 1, number_points
-            pji_conditional(j) = exp(-high_dist_matrix(i,j)/(sigma*sigma*2.0_dp))
-            if (i == j) then
-                pji_conditional(j) = 0.0_dp
-            end if
+            if ((i == j).or.(point_count(i) == 0)) cycle
+            pji_conditional(j) = exp(-high_dist_matrix(j,i)/(sigma*sigma*2.0_dp))
         end do
 
-        pji_conditional = pji_conditional / sum(pji_conditional)
+        pji_conditional(:) = pji_conditional(:) / sum(pji_conditional)
 
     end function calculating_pji
-
-    function calculating_pij(sigma,j) result(pij_conditional)
-        implicit none
-        real(dp), allocatable, dimension(:) :: pij_conditional
-        real(kind=dp), intent(in) :: sigma
-        integer, intent (in) :: j
-        integer              :: i
-
-        allocate(pij_conditional(number_points))
-
-        do i = 1, number_points
-            pij_conditional(i) = exp(-high_dist_matrix(i,j)/(sigma*sigma*2.0_dp))
-            if (i == j) then
-                pij_conditional(i) = 0.0_dp
-            end if
-        end do
-    end function calculating_pij
 
     subroutine high_dimension_distribution()
         implicit none
@@ -176,8 +167,8 @@ contains
 
         do i = 1, number_points
             do j = i+1, number_points
-                pij_1 = exp(-high_dist_matrix(i,j)/(sigma(j)*sigma(j)*2.0_dp))
-                pji_1 = exp(-high_dist_matrix(i,j)/(sigma(i)*sigma(i)*2.0_dp))
+                pij_1 = exp(-high_dist_matrix(j,i)/(sigma(j)*sigma(j)*2.0_dp))
+                pji_1 = exp(-high_dist_matrix(j,i)/(sigma(i)*sigma(i)*2.0_dp))
                 pij(i,j) = (pij_1+pji_1)/(2.0_dp*number_points)
                 pij(j,i) = pij(i,j)
             end do

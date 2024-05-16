@@ -7,6 +7,8 @@ MODULE low_dimension_probability
 
     IMPLICIT NONE
     PUBLIC :: low_dimension_distribution
+    PUBLIC :: calculating_low_dimension_distance
+    PUBLIC :: calculating_qij
     
     integer :: low_dimension  
     real(kind=dp), allocatable, dimension(:,:)  :: low_dimension_position(:,:)
@@ -14,6 +16,15 @@ MODULE low_dimension_probability
     real(kind=dp), allocatable, dimension(:,:)  :: qij(:,:)
 
 contains
+
+    subroutine low_dimension_distribution()
+
+        call low_dimension_init()
+        call calculating_low_dimension_distance()
+        call calculating_qij()
+
+    end subroutine low_dimension_distribution
+
     subroutine low_dimension_init()
 
         IMPLICIT NONE
@@ -27,9 +38,9 @@ contains
 
         allocate (low_dimension_position(low_dimension, number_points))
         allocate (low_dimension_distance(number_points, number_points))
+        allocate (qij(number_points, number_points))
         allocate (random_matrix(low_dimension, number_features))
         
-        write (*,*) 'allocated.'
         do i = 1, low_dimension
             call random_add_noise(random_matrix(i,:), 1.0_dp)
             random_matrix(i,:) = random_matrix(i,:) / sqrt(sum(random_matrix(i,:)**2))
@@ -47,7 +58,14 @@ contains
         low_dimension_position = matmul(random_matrix, data_vec) / sigma_average
 
         write (*,*) 'low dimension position done.'
+
         deallocate(random_matrix)
+    
+    end subroutine low_dimension_init
+
+    subroutine calculating_low_dimension_distance()
+
+        integer :: i, j
 
         low_dimension_distance = 0.0_dp
 
@@ -60,13 +78,11 @@ contains
 
         write (*,*) 'low dimension distance done.'
 
-    end subroutine low_dimension_init
+    end subroutine calculating_low_dimension_distance
 
-    subroutine low_dimension_distribution() 
+    subroutine calculating_qij() 
         implicit none
         integer :: i, j
-
-        call low_dimension_init()
 
         qij = 0.0_dp
         do i = 1, number_points
@@ -76,7 +92,7 @@ contains
             end do   
         end do
     
-    end subroutine low_dimension_distribution
+    end subroutine calculating_qij
 
     subroutine random_add_noise(vec,sigma)
 

@@ -42,7 +42,7 @@ contains
         std_dev = sqrt(std_dev/real(number_points,dp))
 
         do row=1, number_features
-            if(std_dev(row).eq.0.0_dp) cycle
+            if(std_dev(row)== 0.0_dp) cycle
             data_vec(row,:) = data_vec(row, :)/std_dev(row)
         end do
 

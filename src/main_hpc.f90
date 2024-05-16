@@ -1,14 +1,19 @@
 program main
-
+    USE omp_lib
     USE data_reader
+    USE data_writer
     USE initialisation
     USE high_dimension
     USE low_dimension_probability
+    USE optimisation
         
     integer :: iostat
     character(len=256) :: filename
 
     ! Initialize the filename
+
+    call omp_set_num_threads(8)
+
     call get_command_argument(1, filename)
     if (trim(filename) == '') then
         print *, 'No filename provided.'
@@ -42,7 +47,9 @@ program main
     call high_dimension_distribution()
     call low_dimension_distribution()
 
-    print *, 'Program finished.'
+    write (*,*) 'Optimising the low dimension distribution'
+
+    call tpsd (1e-8_dp, 10000)
 
 
 end program main
