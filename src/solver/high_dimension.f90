@@ -38,12 +38,16 @@ contains
             do j = 1, number_points
                 high_dist_matrix(j,i) = length_2(i) + length_2(j) + 1e-10_dp
             end do
-            high_dist_matrix(i,i) = 0.0_dp  
+            high_dist_matrix (i,i) = 0.0_dp  
         end do
         !$omp end parallel do
 
         call dgemm('T','N',number_points,number_points,number_features,-2.0_dp,data_vec(1:number_features,1:number_points),&
                number_features,data_vec(1:number_features,1:number_points),number_features,1.0_dp,high_dist_matrix,number_points)
+
+        do i =1, number_points
+            high_dist_matrix(i,i) = 0.0_dp
+        end do
         
         deallocate(length_2)  
 
@@ -62,11 +66,12 @@ contains
 
         tolerance = 1.0e-13_dp
 
-        !$omp parallel do private(i, high_sigma, high_perplexity, low_sigma, low_perplexity, factor, mid_sigma, mid_perplexity) schedule(dynamic)
+        !omp parallel do private(i, high_sigma, high_perplexity, low_sigma, low_perplexity, factor, mid_sigma, mid_perplexity) schedule(dynamic)
         do i = 1, number_points
-            if (point_count(i) == 0) cycle
-        
-            factor = 2.0_dp
+            write (*,*) i
+            if (point_count(i) .eq. 0) cycle
+            
+            factor = gr
 
             high_sigma = 1.0_dp
             high_perplexity = calculating_perplexity(high_sigma, i)
@@ -82,28 +87,32 @@ contains
                 high_sigma = low_sigma 
                 high_perplexity = low_perplexity
                 low_sigma = low_sigma * factor
-                low_perplexity = calculating_perplexity(low_sigma, i)
+                low_perplexity = calculating_perplexity(low_sigma, i)      
             end do
-            
-            mid_perplexity = huge(0.0_dp)
+           
+            mid_perplexity = huge(1.0_dp)
             do while ((abs(high_sigma - low_sigma) > tolerance) .and. (abs(mid_perplexity - perplexity) > tolerance))
 
                 mid_sigma = (low_sigma + high_sigma) / 2.0_dp
 
-                if (mid_sigma == low_sigma .or. mid_sigma == high_sigma) exit
+                if ((mid_sigma == low_sigma) .or. (mid_sigma == high_sigma)) exit
 
                 mid_perplexity = calculating_perplexity(mid_sigma, i)
 
-                if ((mid_perplexity- perplexity)>0) then
+                if ((mid_perplexity- perplexity)*(high_perplexity-perplexity)>0) then
                     high_sigma = mid_sigma
+                    high_perplexity = mid_perplexity
                 else
                     low_sigma = mid_sigma
+                    low_perplexity = mid_perplexity
                 end if
 
             end do
             sigma(i) = mid_sigma
+
+            write (*,*) mid_sigma
         end do
-        !$omp end parallel do
+        !omp end parallel do
 
     end subroutine find_sigma
     
@@ -112,34 +121,33 @@ contains
         real(dp), intent(in) :: sigma
         integer, intent (in) :: i
         integer              :: j
-        real(dp), allocatable, dimension(:) :: pji_conditional
+        real(dp)             :: pji_conditional(number_points)
         real(dp)             :: entropy, perplexity
 
         entropy = 0.0_dp
         perplexity = 0.0_dp
+        pji_conditional = 0.0_dp
 
         pji_conditional = calculating_pji(sigma,i)
 
         do j = 1, number_points
             if ((i == j) .or. (point_count(j) == 0.0_dp) .or. (pji_conditional(j)<tiny(1.0_dp))) cycle
-            entropy = entropy + pji_conditional(j) * log(pji_conditional(j))/ log(2.0_dp)
+            entropy = entropy - pji_conditional(j) * log(pji_conditional(j))/log(2.0_dp)
         end do
 
-        perplexity = 2.0_dp**(-entropy)
+        perplexity = 2.0_dp**(entropy)
 
     end function calculating_perplexity
 
     function calculating_pji(sigma,i) result(pji_conditional)
         implicit none
-        real(kind=dp), allocatable, dimension(:) :: pji_conditional
+        real(kind=dp)             :: pji_conditional(number_points)
         real(kind=dp), intent(in) :: sigma
         integer, intent (in) :: i
         integer              :: j
 
-        allocate(pji_conditional(number_points))
-
         do j = 1, number_points
-            if ((i == j).or.(point_count(i) == 0)) cycle
+            if ((i == j).or.(point_count(j) == 0)) cycle
             pji_conditional(j) = exp(-high_dist_matrix(j,i)/(sigma*sigma*2.0_dp))
         end do
 
@@ -150,12 +158,13 @@ contains
     subroutine high_dimension_distribution()
         implicit none
         integer :: i, j
-        real(kind=dp) :: pij_1
-        real(kind=dp) :: pji_1
+        real(kind=dp) :: pi_j(number_points, number_points)
         
         write (stderr, *) 'calculating high dimension distance......'
 
         call high_dimension_distance()
+
+        call remove_duplicates(data_vec, high_dist_matrix, number_points, 0.5_dp, .10000E+09_dp)
 
         write (stderr, *) 'finding sigma......'
 
@@ -164,16 +173,31 @@ contains
         write (stderr, *) 'calculating pij.......'
 
         allocate(pij(number_points, number_points))
-
+        
+        pi_j = 0.0_dp
+        !$omp parallel do schedule(dynamic)
         do i = 1, number_points
+            if (point_count(i) ==0) cycle
+            do j = 1, number_points
+                if ((point_count(j) ==0) .or. (i == j)) cycle
+                pi_j(j,i) = exp(-high_dist_matrix(j,i)/(sigma(i)**2*2.0_dp))
+            end do
+            pi_j(:,i) = pi_j(:,i) / sum(pi_j(:,i))
+        end do   
+        !$omp end parallel do
+
+        !$omp parallel do schedule(dynamic)
+        do i = 1, number_points
+            if (point_count(i) ==0) cycle
             do j = i+1, number_points
-                pij_1 = exp(-high_dist_matrix(j,i)/(sigma(j)*sigma(j)*2.0_dp))
-                pji_1 = exp(-high_dist_matrix(j,i)/(sigma(i)*sigma(i)*2.0_dp))
-                pij(i,j) = (pij_1+pji_1)/(2.0_dp*number_points)
+                if (point_count(j) ==0) cycle
+                pij(i,j) = (pi_j(i,j)+pi_j(j,i))/real(2.0_dp*reduced_number_points)
                 pij(j,i) = pij(i,j)
             end do
-            pij(i,i) = 0.0_dp
-        end do   
+        end do
+        !$omp end parallel do
+       
+
     end subroutine high_dimension_distribution
 
 END MODULE high_dimension
