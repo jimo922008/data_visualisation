@@ -3,6 +3,10 @@ module constants
   implicit none
 
   integer, public, parameter       :: dp=8 ! Single = 4 Double = 8 Quad = 16
+
+  !integer, public, parameter       :: sp=4 (dgemm to sgmm)
+  ! (apple silicon )
+
   integer, public, parameter       :: stdin=5
   integer, public, parameter       :: stdout=6
   integer, public, parameter       :: stderr=0

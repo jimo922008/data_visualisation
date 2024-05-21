@@ -7,7 +7,7 @@ project(sheap
 
 set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -std=f2008")
 set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -ffree-line-length-none")
-set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -O3")
+set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -O0 -g -fimplicit-none -Wall -Wextra")
 set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fopenmp")
 enable_testing()
 
@@ -18,6 +18,8 @@ set(CMAKE_Fortran_FLAGS_RELEASE "-Ofast -fexternal-blas -march=native -ffast-mat
 find_package(OpenMP REQUIRED)
 find_package(MPI REQUIRED)
 find_package(BLAS REQUIRED)
+
+# minus LBLAS (print the blas library)
 
 add_subdirectory(src)
 add_subdirectory(test)

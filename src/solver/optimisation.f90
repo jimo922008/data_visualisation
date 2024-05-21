@@ -13,54 +13,179 @@ MODULE optimisation
 
     real(kind=dp) :: cost_zero
 
+    integer       :: nexag = 200
+    real(kind=dp) :: exageration = 5.0_dp
+    !integer       :: growth_steps = 500
+
 contains
 
-    subroutine tpsd(threshold, maxsteps, exageration)
+    subroutine tpsd(threshold, maxsteps)
 
         implicit none
        
         integer,       intent(in) :: maxsteps 
-        real(kind=dp), intent(in) :: threshold, exageration
+        real(kind=dp), intent(in) :: threshold
         real(kind=dp)             :: cost, final_cost, step_size, gradient_norm, running_gradient_norm
-        real(kind=dp)             :: gradient_matrix(low_dimension, number_points), gradient_vector(low_dimension*number_points)
+        real(kind=dp)             :: gradient_matrix(low_dimension, number_points), gradient_vector(low_dimension*number_points), ptb_vec(low_dimension*number_points), gptb(low_dimension*number_points)
         real(kind=dp)             :: position_vector(low_dimension*number_points), centre_of_mass(low_dimension)
-        integer                   :: i, log_interval, steps
+        integer                   :: i, start_growth
 
         i=0
         gradient_norm=huge(1.0_dp)
         running_gradient_norm=0.0_dp
 
         cost_zero=calculating_cost_zero(pij)
+
+        write (*,*) 'Initial cost: ', cost_zero
     
         position_vector=reshape(low_dimension_position,(/low_dimension*number_points/))
 
-        do while((running_gradient_norm > log10(threshold) .or. i < 100) .and. i < maxsteps)
+        do while(((running_gradient_norm > log10(threshold) .or. (i < 100+nexag)) .or. (i<100)) .and. (i < maxsteps))
             
             i = i + 1
 
-            call loss_gradient(gradient_matrix, cost, exageration)
+            if (i > nexag) exageration = 1.0_dp
 
-            write (*,*) 'Cost: ', cost, gradient_matrix(1,1), gradient_matrix(2,1), gradient_matrix(3,1)
+            call loss_gradient(gradient_matrix, cost, exageration)
             
             gradient_vector=reshape(gradient_matrix,(/low_dimension*number_points/))
 
-            step_size = calculate_stepsize(position_vector, gradient_vector)
+            ! big dataset (instruments, debug)
 
-            position_vector=position_vector - step_size*gradient_vector
+            call random_point_in_hypersphere(ptb_vec, 1e-2_dp)
+
+            gptb = gradient_vector*(1.0_dp+ ptb_vec)
+
+            step_size = abs(calculate_stepsize(position_vector, gptb, init = ((i == 1) .or. (i == nexag))))
+
+            position_vector=position_vector - step_size*gptb
 
             low_dimension_position=reshape(position_vector,(/low_dimension,number_points/))
 
-            gradient_norm=abs(dot_product(step_size*gradient_vector,gradient_vector))
+            gradient_norm=abs(dot_product(step_size*gptb,gradient_vector))
 
             running_gradient_norm=running_gradient_norm + (log10(gradient_norm)-running_gradient_norm)/min(i,100)
 
-            write (*,*) 'Step: ', i, ' Gradient norm: ', gradient_norm, ' Running gradient norm: ', running_gradient_norm
+            if ((running_gradient_norm < log10(threshold* growth_tol_coeff)) .and. (i> nexag+100)) then
+                start_growth = i
+                if (i > start_growth) .and. (i < start_growth + growth_steps) then
+
+                    
+                end if
+            end if
+
+            write (*,*) 'Step: ', step_size, ' cost: ', cost, ' Running gradient norm: ', running_gradient_norm
+
         end do
 
         ! * Store final map cost
         final_cost=cost
+
+        write (*,*) 'Final cost: ', final_cost
         
     end subroutine tpsd
+
+    subroutine loss_gradient(gradient_matrix, cost, exageration)
+        implicit none
+        real(kind=dp),                                          intent(in)  :: exageration
+        real(kind=dp),                                          intent(out) :: cost
+        real(kind=dp), dimension(low_dimension, number_points), intent(out) :: gradient_matrix
+
+        real(kind=dp), dimension(low_dimension)               :: vec, pos
+        real(kind=dp) :: z, rij2, qij, dist
+        integer:: i, j
+        
+        z = real(reduced_number_points, dp) * (real(reduced_number_points, dp)-1.0_dp)
+
+        cost = cost_zero
+        gradient_matrix=0.0_dp
+
+        !$omp parallel do private(pos, rij2, qij, vec) reduction(+:gradient_matrix,cost) schedule(dynamic)
+        do i=1,number_points
+            if (point_count(i) ==0) cycle
+            do j=i+1,number_points
+                if (point_count(j)==0) cycle
+                pos(:)=low_dimension_position(:,i)-low_dimension_position(:,j)
+                rij2=dot_product(pos,pos)
+                qij=1.0_dp/(1.0_dp+rij2)/z
+                
+                vec(:) = 4.0_dp * z * (exageration*pij(j,i) - (1-pij(j,i)) / (1-qij) * qij) * qij * pos(:)
+                gradient_matrix(:,i)=gradient_matrix(:,i)+vec(:)
+                gradient_matrix(:,j)=gradient_matrix(:,j)-vec(:)
+                cost=cost-pij(j,i)*log(qij)*2.0_dp-(1-pij(j,i))*log(1-qij)*2.0_dp
+
+            end do
+        end do
+        !$omp end parallel do
+
+    end subroutine loss_gradient
+
+
+    subroutine loss_gradient_core (gradient_matrix, cost)
+
+        real(kind=dp), dimension(low_dimension, number_points), intent(out) :: gradient_matrix
+        real(kind=dp), intent(out)                                          :: cost
+        real(kind=dp), dimension(low_dimension)               :: vec, pos
+        real(kind=dp) :: dist, rij2, qij
+        integer:: i, j
+
+        !$omp parallel do private(pos, dist) reduction(+:gradient_matrix,cost) schedule(dynamic)
+        do i = 1, number_points
+            if (point_count(i) == 0) cycle
+            do j = i+1, number_points
+                if (point_count(j) == 0) cycle
+
+                pos(:)=low_dimension_position(:,i)-low_dimension_position(:,j)
+                rij2=dot_product(pos,pos)
+                qij=1.0_dp/(1.0_dp+rij2)
+                dist=sqrt(rij2)
+
+                if(dist < point_radius(i)+point_radius(j)) then
+                   pos(:)=-(low_dimension_position(:,i)-low_dimension_position(:,j))/dist
+                   dist=(point_radius(i)+point_radius(j)-dist)/2.0_dp
+                   gradient_matrix(:,i)=gradient_matrix(:,i)+vec(:)*dist*core_strength/2.0_dp
+                   gradient_matrix(:,j)=gradient_matrix(:,j)-vec(:)*dist*core_strength/2.0_dp
+                   cost=cost+dist**2/2.0_dp*core_strength
+                end if
+            end do
+        end do
+        !$omp end parallel do
+    end subroutine loss_gradient_core
+
+
+    function calculate_stepsize(current_position, current_gradient, init) result(step_size)
+
+        logical, optional, intent(in)                                 :: init
+        real(kind=dp), dimension(:), intent(in)                       :: current_position, current_gradient
+        real(kind=dp), save, allocatable, dimension(:)                :: previous_position, previous_gradient
+        real(kind=dp), dimension(size(current_position))              :: position_change, gradient_change
+        real(kind=dp)                                                 :: gradient_change_magnitude, position_gradient_dot_product
+        real(kind=dp)                                                 :: step_size
+        real(kind=dp), parameter                                      :: default_step_size=1e-1_dp
+
+        if(init) then
+            if (allocated(previous_position)) deallocate(previous_position)
+            if (allocated(previous_gradient)) deallocate(previous_gradient)
+            allocate(previous_position(size(current_position)))
+            allocate(previous_gradient(size(current_gradient)))
+            step_size=default_step_size
+        
+        else
+        
+            position_change=current_position- previous_position
+            gradient_change=current_gradient- previous_gradient
+
+            gradient_change_magnitude=dot_product(gradient_change,gradient_change)
+            position_gradient_dot_product=dot_product(position_change,gradient_change)
+        
+            step_size=position_gradient_dot_product/gradient_change_magnitude
+        
+        end if
+        
+        previous_position=current_position
+        previous_gradient=current_gradient
+
+    end function calculate_stepsize
 
     function calculating_cost_zero (pij) result(cost_zero)
 
@@ -89,92 +214,27 @@ contains
 
     end function calculating_cost_zero
 
-    subroutine loss_gradient(gradient_matrix, cost, exageration)
-        implicit none
-        real(kind=dp),                                          intent(in)  :: exageration
-        real(kind=dp),                                          intent(out) :: cost
-        real(kind=dp), dimension(low_dimension, number_points), intent(out) :: gradient_matrix
+    subroutine random_point_in_hypersphere(vec,r) 
 
-        real(kind=dp), dimension(low_dimension)               :: vec, pos
-        real(kind=dp), dimension(number_points,number_points) :: dist
-        real(kind=dp) :: z
-        integer:: i, j
+        integer                                  :: n
+
+        real(kind=dp)                            :: d
+        real(kind=dp),               intent(in)  :: r
+        real(kind=dp), dimension(:), intent(out) :: vec
+
+        n=size(vec)
+
+        vec=0.0_dp
+
+        call random_number(d)
         
-        gradient_matrix=0.0_dp
-        z = 4.0_dp * number_points * (number_points-1.0_dp)
-        cost = cost_zero
+        d= r*d**(1/real(n,dp))
 
-        call calculating_low_dimension_distance()
-        call calculating_qij()
+        call random_add_noise(vec,1.0_dp)
 
-        dist=sqrt(low_dimension_distance)
+        vec=d*vec/norm2(vec)
 
-        !$omp parallel do private(vec) reduction(+:gradient_matrix,cost) collapse(2)
-        do i=1,number_points
-            do j=i+1,number_points
-                if ((point_count(i)/=0) .and. (point_count(j)/=0)) then
-                    pos(:)=low_dimension_position(:,i)-low_dimension_position(:,j)
-                    vec(:) = z * (exageration*(pij(j,i) - (1-pij(j,i)) / (1-qij(j,i)) * qij(j,i)) * qij(j,i)) * pos(:)
-                    gradient_matrix(:,i)=gradient_matrix(:,i)+vec(:)
-                    gradient_matrix(:,j)=gradient_matrix(:,j)-vec(:)
-                    cost=cost-pij(j,i)*log(qij(j,i))*2.0_dp-(1-pij(j,i))*log(1-qij(j,i))*2.0_dp
-                end if
-            end do
-        end do
-        !$omp end parallel do
-        
-        !$omp parallel do private(vec) reduction(+:gradient_matrix,cost) collapse(2)
-        do i=1,number_points
-            do j=i+1,number_points
-                if ((point_count(i)/=0) .and. (point_count(j)/=0) .and. (dist(j,i) /=0)) then
-                    if(dist(j,i) < point_radius(i)+point_radius(j)) then
-                        vec(:)=-(low_dimension_position(:,i)-low_dimension_position(:,j))/dist(j,i)
-                        dist(j,i)=(point_radius(i)+point_radius(j)-dist(j,i))/2.0_dp
-                        gradient_matrix(:,i)=gradient_matrix(:,i)+vec(:)*dist(j,i)*core_strength/2.0_dp
-                        gradient_matrix(:,j)=gradient_matrix(:,j)-vec(:)*dist(j,i)*core_strength/2.0_dp
-                        cost=cost+dist(j,i)**2/2.0_dp*core_strength
-                    end if
-                end if
-            end do
-        end do
-        !$omp end parallel do
-
-    end subroutine loss_gradient
-
-
-    function calculate_stepsize(current_position, current_gradient) result(step_size)
-
-        real(kind=dp), dimension(:), intent(in)                       :: current_position, current_gradient
-        real(kind=dp), save, allocatable, dimension(:)                :: previous_position, previous_gradient
-        real(kind=dp), dimension(size(current_position))              :: position_change, gradient_change
-        real(kind=dp)                                                 :: gradient_change_magnitude, position_gradient_dot_product
-        real(kind=dp)                                                 :: step_size
-        real(kind=dp), parameter                                      :: default_step_size=1e-1_dp
-
-        if(.not.allocated(previous_position)) then
-            allocate(previous_position(size(current_position)))
-            allocate(previous_gradient(size(current_gradient)))
-            previous_position=current_position
-            previous_gradient=current_gradient
-            step_size=default_step_size
-        end if
-
-        position_change=current_position-previous_position
-        gradient_change=current_gradient-previous_gradient
-
-        gradient_change_magnitude=sqrt(dot_product(gradient_change,gradient_change))
-        position_gradient_dot_product=dot_product(position_change,gradient_change)
-        
-        if (gradient_change_magnitude==0.0_dp) then
-            step_size=default_step_size
-        else
-            step_size=position_gradient_dot_product/gradient_change_magnitude
-        end if 
-
-        previous_position=current_position
-        previous_gradient=current_gradient
-
-    end function calculate_stepsize
+    end subroutine random_point_in_hypersphere
 
 
 end MODULE optimisation

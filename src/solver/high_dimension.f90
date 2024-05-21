@@ -45,6 +45,9 @@ contains
         call dgemm('T','N',number_points,number_points,number_features,-2.0_dp,data_vec(1:number_features,1:number_points),&
                number_features,data_vec(1:number_features,1:number_points),number_features,1.0_dp,high_dist_matrix,number_points)
 
+        ! _ single precision version??? 
+        ! 
+
         do i =1, number_points
             high_dist_matrix(i,i) = 0.0_dp
         end do
@@ -68,7 +71,7 @@ contains
 
         !omp parallel do private(i, high_sigma, high_perplexity, low_sigma, low_perplexity, factor, mid_sigma, mid_perplexity) schedule(dynamic)
         do i = 1, number_points
-            write (*,*) i
+            
             if (point_count(i) .eq. 0) cycle
             
             factor = gr
@@ -110,7 +113,6 @@ contains
             end do
             sigma(i) = mid_sigma
 
-            write (*,*) mid_sigma
         end do
         !omp end parallel do
 
@@ -130,10 +132,12 @@ contains
 
         pji_conditional = calculating_pji(sigma,i)
 
+        !omp parallel do private(j) reduction(+:entropy)
         do j = 1, number_points
             if ((i == j) .or. (point_count(j) == 0.0_dp) .or. (pji_conditional(j)<tiny(1.0_dp))) cycle
             entropy = entropy - pji_conditional(j) * log(pji_conditional(j))/log(2.0_dp)
         end do
+        !omp end parallel do
 
         perplexity = 2.0_dp**(entropy)
 
@@ -146,10 +150,12 @@ contains
         integer, intent (in) :: i
         integer              :: j
 
+        !omp parallel do private(j)
         do j = 1, number_points
             if ((i == j).or.(point_count(j) == 0)) cycle
             pji_conditional(j) = exp(-high_dist_matrix(j,i)/(sigma*sigma*2.0_dp))
         end do
+        !omp end parallel do
 
         pji_conditional(:) = pji_conditional(:) / sum(pji_conditional)
 

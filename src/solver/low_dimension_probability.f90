@@ -9,6 +9,7 @@ MODULE low_dimension_probability
     PUBLIC :: low_dimension_distribution
     PUBLIC :: calculating_low_dimension_distance
     PUBLIC :: calculating_qij
+    PUBLIC :: random_add_noise
     
     integer :: low_dimension  
     real(kind=dp), allocatable, dimension(:,:)  :: low_dimension_position(:,:)
@@ -21,14 +22,13 @@ MODULE low_dimension_probability
 
     integer, public           :: trace_step=1
     integer, public           :: niter=10000
-    integer, public           :: nexag=200
     integer, public           :: nneg=1
 
     real(kind=dp), public     :: sexag=5.0_dp
     real(kind=dp), public     :: alpha=-1.0_dp
     real(kind=dp), public     :: tolerance=1e-8_dp
 
-    ! * Hard sphere growth    
+    ! * Hard sphere growth   
     integer, public           :: growth_steps=500
     real(kind=dp), public     :: sphere_radius=0.01_dp
     real(kind=dp), public     :: core_strength=1.0_dp
@@ -40,10 +40,10 @@ contains
 
         call low_dimension_init()
         call low_dimension_normalisation()
-        call calculating_low_dimension_distance()
-        call calculating_qij()
+        !call calculating_low_dimension_distance()
+        !call calculating_qij()
         call hard_sphere_initialisation()
-
+        
     end subroutine low_dimension_distribution
 
     subroutine low_dimension_init()
@@ -61,7 +61,9 @@ contains
         allocate (low_dimension_distance(number_points, number_points))
         allocate (qij(number_points, number_points))
         allocate (random_matrix(low_dimension, number_features))
-        
+
+        random_matrix = 0.0_dp
+
         do i = 1, low_dimension
             call random_add_noise(random_matrix(i,:), 1.0_dp)
             random_matrix(i,:) = random_matrix(i,:) /norm2(random_matrix(i,:))
@@ -93,12 +95,16 @@ contains
 
         allocate (mass_centre(low_dimension))
 
+        mass_centre=0.0_dp
+
+        !$omp parallel do reduction(+:mass_centre) schedule(dynamic)
         do i = 1, number_points
             if (point_count(i) == 0) cycle
             mass_centre = mass_centre + low_dimension_position(:,i)
         end do
+        !$omp end parallel do
 
-        mass_centre = mass_centre / number_points
+        mass_centre = mass_centre / real(reduced_number_points,dp)
 
         do i = 1, number_points
             if (point_count(i) == 0) cycle
@@ -114,16 +120,17 @@ contains
 
         low_dimension_distance = 0.0_dp
 
-        !$omp parallel do collapse(2)
+        !$omp parallel do schedule(static)
         do i = 1, number_points
+            if (point_count(i) == 0) cycle
             do j = i+1, number_points
-                if ((point_count(i) /= 0).and.(point_count(j) /= 0)) then
-                    vec = low_dimension_position(:,i) - low_dimension_position(:,j)
-                    low_dimension_distance(j,i) = dot_product(vec,vec)
-                    low_dimension_distance(i,j) = low_dimension_distance(j,i)
-                end if
+                if (point_count(j) == 0) cycle
+                vec(:) = low_dimension_position(:,i) - low_dimension_position(:,j)
+                low_dimension_distance(j,i) = dot_product(vec,vec)
+                low_dimension_distance(i,j) = low_dimension_distance(j,i)
             end do
-        end do  
+        end do
+        !$omp end parallel do 
 
     end subroutine calculating_low_dimension_distance
 
@@ -133,34 +140,33 @@ contains
 
         qij = 0.0_dp
 
-        !$omp parallel do collapse(2)
+        !$omp parallel do schedule(static)
         do i = 1, number_points
+            if (point_count(i) == 0) cycle
             do j = i+1, number_points
-                if ((point_count(i) /= 0).and.(point_count(j) /= 0)) then
-                    qij(j,i)= 1/((1.0_dp+ low_dimension_distance(j,i))*number_points*(number_points-1))
-                    qij(i,j) = qij(j,i)
-                end if
+                if (point_count(j) == 0) cycle
+                    qij(j,i)= 1/((1.0_dp+ low_dimension_distance(j,i))*real(reduced_number_points,dp)*(real(reduced_number_points, dp)-1.0_dp))
+                    qij(i,j)= qij(j,i)
             end do   
         end do
         !$omp end parallel do
     
     end subroutine calculating_qij
 
-    subroutine random_add_noise(vec,sigma)
+    subroutine random_add_noise(vec, variance)
 
         integer                                    :: n
 
         real(kind=dp)                              :: U,V
-        real(kind=dp), intent(in)                  :: sigma
+        real(kind=dp), intent(in)                  :: variance
         real(kind=dp), dimension(:), intent(inout) :: vec
 
-        call random_seed()
         do n=1,size(vec)
             
             call random_number(U)
             call random_number(V)
 
-            vec(n)=vec(n)+sqrt(-2*log(U))*cos(tpi*V)*sigma
+            vec(n)=vec(n)+sqrt(-2*log(U))*cos(tpi*V)*variance
 
         end do
 
@@ -175,7 +181,7 @@ contains
 
         allocate (point_radius(number_points))
 
-        point_radius(i) = 0.0_dp
+        point_radius = 0.0_dp
 
         !$omp parallel do schedule(static)
         do i=1,number_points
