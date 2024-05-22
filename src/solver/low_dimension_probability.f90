@@ -189,6 +189,8 @@ contains
             point_radius(i)=sphere_radius*real(point_count(i),dp)**(1.0_dp/real(low_dimension,dp))
         end do
         !$omp end parallel do
+
+        !point_radius = point_radius/100.0_dp
     
     end subroutine hard_sphere_initialisation
 

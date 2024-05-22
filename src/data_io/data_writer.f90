@@ -1,30 +1,37 @@
 MODULE data_writer
     
     USE constants
+    USE data_reader
+    USE high_dimension
+    USE low_dimension_probability
+    USE optimisation
 
     IMPLICIT NONE 
 
 contains
-    subroutine write_file (low_dimension_position)
-        ! Declare variables
-        real(dp), dimension(:,:), intent(in) :: low_dimension_position
+    subroutine write_file (filename)
+        character(len=*) :: filename
+        character(len=20):: fmt
         integer :: unit_number
         integer :: i,j
 
         unit_number = 20
-        open(unit=unit_number, file='output.txt', status='replace', action='write')
+        open(unit=unit_number, file=trim(filename), status='replace', action='write')
 
-      ! Write array to file
-        do i = 1, size(low_dimension_position, 1)
-            ! Write each column of the current row to file
-            do j = 1, size(low_dimension_position, 2)
-                write(unit_number, '(F8.2, 1X)', advance='no') low_dimension_position(i, j)
-            end do
-            write(unit_number, *) ! New line after each row
+        write (unit_number, '(i0)') reduced_number_points
+        write (unit_number,'(a,i0,a,f16.10)') 'dim ',low_dimension,' : cost', final_cost
+        do i=1,number_points
+            if(point_count(i)==0) cycle
+            write(fmt,*) low_dimension
+            write(unit_number,'(a2,'//trim(adjustl(fmt))//'g25.13,a50,i6,a15,a10,g25.13,g25.13,i6,g25.13)') 'H',(low_dimension_position(j,i),j=1,low_dimension),&
+            trim(ion_label(i)),ion_num(i),trim(ion_formula(i)),trim(ion_symmetry(i)),ion_volume(i),ion_energy(i),&
+            point_count(i),max(sphere_radius,point_radius(i))
         end do
 
-        ! Close the file
+        flush(unit_number)
         close(unit_number)
+
+
     end subroutine write_file
 
 END MODULE data_writer
