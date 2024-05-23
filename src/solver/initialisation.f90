@@ -9,7 +9,7 @@ MODULE initialisation
     PUBLIC :: remove_duplicates
 
     private
-    REAL(kind=dp), dimension(:), allocatable :: mass_centre, std_dev
+    REAL(kind=dp), dimension(:), allocatable  :: mass_centre, std_dev
 
     INTEGER, PUBLIC :: reduced_number_points
 
@@ -22,33 +22,14 @@ contains
 
         WRITE(stderr, *) 'centering source data'
 
-        ALLOCATE(mass_centre(number_features))
-        ALLOCATE(std_dev(number_features))
+        allocate(mass_centre(number_features))
+        allocate(std_dev(number_features))
 
-        mass_centre = 0.0_dp
-        std_dev = 0.0_dp
+        mass_centre = sum(data_vec, dim=2)/real(number_points, dp)
 
-        !$omp parallel do reduction(+:mass_centre) schedule(dynamic)
-        do i=1, number_points
-            mass_centre = mass_centre + data_vec(1:number_features, i)
-        end do
-        !$omp end parallel do 
+        data_vec = data_vec - spread(mass_centre, 2, number_points)
 
-        mass_centre = mass_centre/real(number_points, dp)
-
-        write (stderr, *) 'normalising data'
-
-        do i=1, number_points
-            data_vec(1:number_features, i) = data_vec(1:number_features, i) - mass_centre(:)
-            !std_dev = std_dev + data_vec(1:number_features, col)**2
-        end do 
-
-        !std_dev = sqrt(std_dev/real(number_points-1,dp))
-
-        !do row=1, number_features
-        !    if(std_dev(row)== 0.0_dp) cycle
-        !    data_vec(row,:) = data_vec(row, :)/std_dev(row)
-        !end do
+        std_dev = sqrt(sum(data_vec**2, dim=2)/real(number_points-1,dp))
 
     end subroutine normalisation
 

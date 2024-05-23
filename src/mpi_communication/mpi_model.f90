@@ -6,9 +6,10 @@ MODULE mpi_optimisation
 
     IMPLICIT NONE
 
+    integer                                    :: rank, nranks
     integer                                    :: i, j
-    integer                                    :: pair_index, start_index, end_index, number_pairs
-    integer, dimension(:,:), allocatable       :: pairs, pairs_per_rank
+    integer                                    :: pair_index, start_index, end_index, number_pairs, pairs_per_rank
+    integer, dimension(:,:), allocatable       :: pairs
     real(kind=dp)                              :: cost_local, cost_global
     real(kind=dp), dimension(:,:), allocatable :: gradient_matrix_local, gradient_matrix_global
 
