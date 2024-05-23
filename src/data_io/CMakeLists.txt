@@ -10,8 +10,8 @@ target_link_libraries(dataio_lib
                       ${NETCDF_LIBRARIES})
 
 target_include_directories(dataio_lib
-                           PUBLIC
-                           ${NETCDF_INCLUDE_DIRS}
-                           ${CMAKE_BINARY_DIR}/src/constants
-                            ${CMAKE_BINARY_DIR}/src/solver
+                        PUBLIC
+                        ${NETCDF_INCLUDE_DIRS}
+                        ${CMAKE_BINARY_DIR}/src/constants
+                        ${CMAKE_BINARY_DIR}/src/solver
 )

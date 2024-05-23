@@ -18,7 +18,7 @@ contains
         implicit none
         REAL(kind=dp), intent(inout) :: data_vec(:,:)
         INTEGER, intent(in) :: number_points, number_features
-        integer ::  row, col
+        integer ::  i, j
 
         WRITE(stderr, *) 'centering source data'
 
@@ -29,8 +29,8 @@ contains
         std_dev = 0.0_dp
 
         !$omp parallel do reduction(+:mass_centre) schedule(dynamic)
-        do col=1, number_points
-            mass_centre = mass_centre + data_vec(1:number_features, col)
+        do i=1, number_points
+            mass_centre = mass_centre + data_vec(1:number_features, i)
         end do
         !$omp end parallel do 
 
@@ -38,12 +38,12 @@ contains
 
         write (stderr, *) 'normalising data'
 
-        do col=1, number_points
-            data_vec(1:number_features, col) = data_vec(1:number_features, col) - mass_centre(:)
-            std_dev = std_dev + data_vec(1:number_features, col)**2
+        do i=1, number_points
+            data_vec(1:number_features, i) = data_vec(1:number_features, i) - mass_centre(:)
+            !std_dev = std_dev + data_vec(1:number_features, col)**2
         end do 
 
-        std_dev = sqrt(std_dev/real(number_points-1,dp))
+        !std_dev = sqrt(std_dev/real(number_points-1,dp))
 
         !do row=1, number_features
         !    if(std_dev(row)== 0.0_dp) cycle
@@ -57,8 +57,8 @@ contains
         REAL(kind=dp), intent(in) :: data_vec(:,:)
         REAL(kind=dp), intent(in) :: similar_threshold_, energy_threshold
         REAL(kind=dp), intent(in) :: high_dist_matrix(:,:)
-        REAL(kind=dp) :: similar_threshold
-        INTEGER, intent(inout) :: number_points
+        REAL(kind=dp)             :: similar_threshold
+        INTEGER, intent(inout)    :: number_points
         integer :: i, j
 
         similar_threshold=similar_threshold_*sum(std_dev)/100_dp

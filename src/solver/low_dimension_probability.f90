@@ -134,24 +134,21 @@ contains
 
     end subroutine calculating_low_dimension_distance
 
-    subroutine calculating_qij() 
+    function calculating_qij(i, j) result(qij)
+
         implicit none
-        integer :: i, j
+        integer,                intent(in) :: i, j
+        real(kind=dp)      :: qij
+        real(kind=dp)                      :: rij2, z
+        real(kind=dp), dimension(low_dimension) :: pos
+        
+        z = real(reduced_number_points, dp) * (real(reduced_number_points, dp)-1.0_dp)
 
-        qij = 0.0_dp
-
-        !$omp parallel do schedule(static)
-        do i = 1, number_points
-            if (point_count(i) == 0) cycle
-            do j = i+1, number_points
-                if (point_count(j) == 0) cycle
-                    qij(j,i)= 1/((1.0_dp+ low_dimension_distance(j,i))*real(reduced_number_points,dp)*(real(reduced_number_points, dp)-1.0_dp))
-                    qij(i,j)= qij(j,i)
-            end do   
-        end do
-        !$omp end parallel do
+        pos(:)=low_dimension_position(:,i)-low_dimension_position(:,j)
+        rij2=dot_product(pos,pos)
+        qij=1.0_dp/(1.0_dp+rij2)/z
     
-    end subroutine calculating_qij
+    end function calculating_qij
 
     subroutine random_add_noise(vec, variance)
 
