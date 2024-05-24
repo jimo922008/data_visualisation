@@ -20,8 +20,7 @@ contains
 
         write (unit_number, '(i0)') reduced_number_points
         write (unit_number,'(a,i0,a,f16.10)') 'dim ',low_dimension,' : cost', final_cost
-        do i=1,number_points
-            if(point_count(i)==0) cycle
+        do i=1,reduced_number_points
             write(fmt,*) low_dimension
             write(unit_number,'(a2,'//trim(adjustl(fmt))//'g25.13,a50,i6,a15,a10,g25.13,g25.13,i6,g25.13)') 'H',(low_dimension_position(j,i),j=1,low_dimension),&
             trim(ion_label(i)),ion_num(i),trim(ion_formula(i)),trim(ion_symmetry(i)),ion_volume(i),ion_energy(i),&

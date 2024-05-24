@@ -56,7 +56,7 @@ program main
     write (*,*) 'Optimising the low dimension distribution'
 
     call tpsd(1e-8_dp, 10000)
-    call write_file(trim('lj13.xyz'))
+    call write_file(trim('LJ13-sheap.xyz'))
 
 
 end program main

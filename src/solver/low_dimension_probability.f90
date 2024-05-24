@@ -39,10 +39,11 @@ contains
     subroutine low_dimension_distribution()
 
         call low_dimension_init()
+        write (*,*) 'low dimension init done.'
         call low_dimension_normalisation()
-        !call calculating_low_dimension_distance()
-        !call calculating_qij()
+        write (*,*) 'low dimension normalisation done.'
         call hard_sphere_initialisation()
+        write (*,*) 'hard sphere initialisation done.'
         
     end subroutine low_dimension_distribution
 
@@ -57,9 +58,9 @@ contains
         write (*,*) 'Please insert the dimension of the low dimensional data.'
         read (*,*) low_dimension
 
-        allocate (low_dimension_position(low_dimension, number_points))
-        allocate (low_dimension_distance(number_points, number_points))
-        allocate (qij(number_points, number_points))
+        allocate (low_dimension_position(low_dimension, reduced_number_points))
+        allocate (low_dimension_distance(reduced_number_points, reduced_number_points))
+        allocate (qij(reduced_number_points, reduced_number_points))
         allocate (random_matrix(low_dimension, number_features))
 
         random_matrix = 0.0_dp
@@ -78,7 +79,7 @@ contains
         
         sigma_average = sum(sigma) / real(reduced_number_points,dp)
 
-        low_dimension_position = matmul(random_matrix, data_vec) / sigma_average / projection_compression 
+        low_dimension_position = matmul(random_matrix, data_clean) / sigma_average / projection_compression 
 
         write (*,*) 'low dimension position done.'
 
@@ -88,28 +89,13 @@ contains
 
     subroutine low_dimension_normalisation()
 
-        implicit none
-
-        integer :: i
         real(kind=dp), allocatable, dimension(:) :: mass_centre
 
         allocate (mass_centre(low_dimension))
 
-        mass_centre=0.0_dp
+        mass_centre = sum(low_dimension_position, dim=2)/real(reduced_number_points, dp)
 
-        !$omp parallel do reduction(+:mass_centre) schedule(dynamic)
-        do i = 1, number_points
-            if (point_count(i) == 0) cycle
-            mass_centre = mass_centre + low_dimension_position(:,i)
-        end do
-        !$omp end parallel do
-
-        mass_centre = mass_centre / real(reduced_number_points,dp)
-
-        do i = 1, number_points
-            if (point_count(i) == 0) cycle
-            low_dimension_position(:,i) = low_dimension_position(:,i) - mass_centre
-        end do
+        low_dimension_position = low_dimension_position - spread(mass_centre, 2, reduced_number_points)
     
     end subroutine low_dimension_normalisation
 
@@ -121,10 +107,8 @@ contains
         low_dimension_distance = 0.0_dp
 
         !$omp parallel do schedule(static)
-        do i = 1, number_points
-            if (point_count(i) == 0) cycle
-            do j = i+1, number_points
-                if (point_count(j) == 0) cycle
+        do i = 1, reduced_number_points
+            do j = i+1, reduced_number_points
                 vec(:) = low_dimension_position(:,i) - low_dimension_position(:,j)
                 low_dimension_distance(j,i) = dot_product(vec,vec)
                 low_dimension_distance(i,j) = low_dimension_distance(j,i)
@@ -138,7 +122,7 @@ contains
 
         implicit none
         integer,                intent(in) :: i, j
-        real(kind=dp)      :: qij
+        real(kind=dp)                      :: qij
         real(kind=dp)                      :: rij2, z
         real(kind=dp), dimension(low_dimension) :: pos
         
@@ -176,14 +160,13 @@ contains
 
         real(kind=dp) :: radius
 
-        allocate (point_radius(number_points))
+        allocate (point_radius(reduced_number_points))
 
         point_radius = 0.0_dp
 
         !$omp parallel do schedule(static)
-        do i=1,number_points
-            if(point_count(i)==0) cycle
-            point_radius(i)=sphere_radius*real(point_count(i),dp)**(1.0_dp/real(low_dimension,dp))
+        do i=1,reduced_number_points
+            point_radius(i)=sphere_radius*real(point_count_clean(i),dp)**(1.0_dp/real(low_dimension,dp))
         end do
         !$omp end parallel do
 

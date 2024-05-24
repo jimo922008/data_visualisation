@@ -17,5 +17,5 @@ target_include_directories(solver_lib
                  PUBLIC
                  ${NETCDF_INCLUDE_DIRS}
                  ${CMAKE_BINARY_DIR}/src/constants
-                ${CMAKE_BINARY_DIR}/src/data_io
+                 ${CMAKE_BINARY_DIR}/src/data_io
 )
