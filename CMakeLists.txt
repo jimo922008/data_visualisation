@@ -7,7 +7,7 @@ project(sheap
 
 set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -std=f2008")
 set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -ffree-line-length-none")
-set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -Ofast -ffast-math -funroll-loops")
+set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -O0")
 set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fopenmp")
 enable_testing()
 

@@ -27,12 +27,9 @@ MODULE low_dimension_probability
     real(kind=dp), public     :: sexag=5.0_dp
     real(kind=dp), public     :: alpha=-1.0_dp
     real(kind=dp), public     :: tolerance=1e-8_dp
-
-    ! * Hard sphere growth   
-    integer, public           :: growth_steps=500
     real(kind=dp), public     :: sphere_radius=0.01_dp
-    real(kind=dp), public     :: core_strength=1.0_dp
-    real(kind=dp), public     :: growth_tol_coeff=2.0_dp
+
+    
 
 contains
 

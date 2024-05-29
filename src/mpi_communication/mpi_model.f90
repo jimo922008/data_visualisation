@@ -124,9 +124,9 @@ CONTAINS
 
             write (*,*) 'Total time: ', elapsed_time()
 
-    
-    end subroutine tpsd_mpi
+        end if 
 
+    end subroutine tpsd_mpi
 
 
 END MODULE mpi_model
