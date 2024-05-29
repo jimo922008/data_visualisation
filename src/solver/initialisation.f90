@@ -25,6 +25,7 @@ contains
         WRITE(stderr, *) 'centering source data'
 
         allocate(mass_centre(number_features))
+
         allocate(std_dev(number_features))
 
         mass_centre = sum(data_vec, dim=2)/real(number_points, dp)
@@ -32,6 +33,8 @@ contains
         data_vec = data_vec - spread(mass_centre, 2, number_points)
 
         std_dev = sqrt(sum(data_vec**2, dim=2)/real(number_points-1,dp))
+
+        write(stderr, *) 'normalising source data'
 
     end subroutine normalisation
 

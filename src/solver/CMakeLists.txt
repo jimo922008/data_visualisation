@@ -10,6 +10,7 @@ target_link_libraries(solver_lib
             PRIVATE
             constants_lib
             dataio_lib
+            timing_lib
             ${NETCDF_LIBRARIES}
             )
 
@@ -18,4 +19,5 @@ target_include_directories(solver_lib
                  ${NETCDF_INCLUDE_DIRS}
                  ${CMAKE_BINARY_DIR}/src/constants
                  ${CMAKE_BINARY_DIR}/src/data_io
+                 ${CMAKE_BINARY_DIR}/src/timing
 )

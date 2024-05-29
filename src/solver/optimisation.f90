@@ -4,6 +4,7 @@ MODULE optimisation
     USE data_reader
     USE high_dimension
     USE low_dimension_probability
+    USE timing_module
 
     IMPLICIT NONE
 
@@ -27,7 +28,7 @@ contains
         integer,       intent(in) :: maxsteps 
         real(kind=dp), intent(in) :: threshold
         real(kind=dp)             :: cost, step_size, gradient_norm, running_gradient_norm
-        real(kind=dp)             :: gradient_matrix(low_dimension, reduced_number_points), gradient_vector(low_dimension*reduced_number_points)
+        real(kind=dp)             :: gradient_vector(low_dimension*reduced_number_points)
         real(kind=dp)             :: ptb_vec(low_dimension*reduced_number_points), gptb(low_dimension*reduced_number_points)
         real(kind=dp)             :: position_vector(low_dimension*reduced_number_points), centre_of_mass(low_dimension)
         integer                   :: i, start_growth
@@ -39,10 +40,10 @@ contains
         running_gradient_norm=0.0_dp
 
         cost_zero=calculating_cost_zero(pij)
-
-        write (*,*) 'Initial cost: ', cost_zero
     
         position_vector=reshape(low_dimension_position,(/low_dimension*reduced_number_points/))
+
+        call start_timer()  
 
         do while((((running_gradient_norm > log10(threshold) .or. (i < 100+nexag))) .and. (i < maxsteps)) .or. (growing))
             
@@ -50,17 +51,11 @@ contains
 
             if (i > nexag) exageration = 1.0_dp
 
-            call loss_gradient_vectorisation(gradient_matrix, cost, exageration, growth_switch)
-            
-            gradient_vector=reshape(gradient_matrix,(/low_dimension*reduced_number_points/))
+            call loss_gradient_vectorisation(gradient_vector, cost, exageration, growth_switch)
 
-            call random_point_in_hypersphere(ptb_vec, 1e-2_dp)
+            step_size = abs(calculate_stepsize(position_vector, gradient_vector, init = ((i == 1) .or. (i == nexag))))
 
-            gptb = gradient_vector*(1.0_dp+ ptb_vec)
-
-            step_size = abs(calculate_stepsize(position_vector, gptb, init = ((i == 1) .or. (i == nexag))))
-
-            position_vector=position_vector - step_size*gptb
+            position_vector=position_vector - step_size*gradient_vector
 
             low_dimension_position=reshape(position_vector,(/low_dimension,reduced_number_points/))
 
@@ -91,10 +86,13 @@ contains
             write (*,*) 'point_radius: ', sum(point_radius)
         end do
 
+        call stop_timer()
         ! * Store final map cost
         final_cost=cost
 
         write (*,*) 'Final cost: ', final_cost
+
+        write (*,*) 'Total time: ', elapsed_time()
         
     end subroutine tpsd
 
@@ -151,25 +149,26 @@ contains
     end subroutine loss_gradient
 
 
-    subroutine loss_gradient_vectorisation(gradient_matrix, cost, exageration, growth_switch)
+    subroutine loss_gradient_vectorisation(gradient_vector, cost, exageration, growth_switch)
         implicit none
-        logical,                                                intent(in)  :: growth_switch 
-        real(kind=dp),                                          intent(in)  :: exageration
-        real(kind=dp),                                          intent(out) :: cost
-        real(kind=dp), dimension(low_dimension, reduced_number_points), intent(out) :: gradient_matrix
+        logical,                                                        intent(in)  :: growth_switch 
+        real(kind=dp),                                                  intent(in)  :: exageration
+        real(kind=dp),                                                  intent(out) :: cost
+        real(kind=dp), dimension(low_dimension* reduced_number_points), intent(out) :: gradient_vector
 
-        real(kind=dp), dimension(:, :), allocatable      :: vec_matrix, pos_matrix
-        real(kind=dp), dimension(:), allocatable                    :: rij2_vector, pij_vector, qij_vector, factor
-        real(kind=dp), dimension(low_dimension)                             :: vec, pos
-        real(kind=dp)                                                       :: z,rij2, qij, dist
-        integer                                               :: i,j
+        logical, dimension(:), allocatable                                  :: overlap_mask
+        real(kind=dp), dimension(low_dimension, reduced_number_points)      :: gradient_matrix
+        real(kind=dp), dimension(:, :), allocatable                         :: vec_matrix, pos_matrix, vec_matrix_packed
+        real(kind=dp), dimension(:), allocatable                            :: rij2_vector, pij_vector, qij_vector, factor, dist_packed, point_radius_packed 
+        real(kind=dp)                                                       :: z
+        integer                                                             :: i, j
         
         z = real(reduced_number_points, dp) * (real(reduced_number_points, dp)-1.0_dp)
 
         cost = cost_zero
         gradient_matrix=0.0_dp
 
-        !$omp parallel do private(pos_matrix, rij2_vector, qij_vector, vec_matrix, pij_vector, factor) reduction(+:gradient_matrix,cost) schedule(dynamic)
+        !$omp parallel do private(pos_matrix, rij2_vector, qij_vector, vec_matrix, pij_vector, factor, dist_packed, overlap_mask, point_radius_packed, vec_matrix_packed) reduction(+:gradient_matrix,cost) schedule(dynamic)
         do i=1,reduced_number_points
             allocate(pos_matrix(low_dimension, reduced_number_points-i))
             allocate(vec_matrix(low_dimension, reduced_number_points-i))
@@ -188,67 +187,95 @@ contains
             gradient_matrix(:,i+1:reduced_number_points)=gradient_matrix(:,i+1:reduced_number_points)-vec_matrix
             cost=cost-sum(pij(i+1:reduced_number_points,i)*log(qij_vector)*2.0_dp-(1-pij(i+1:reduced_number_points,i))*log(1-qij_vector)*2.0_dp)
 
+            if (growth_switch) then
+
+                overlap_mask = sqrt(rij2_vector) < (point_radius(i)+point_radius(i+1:reduced_number_points))
+                
+                if (any(overlap_mask)) then
+                    allocate(dist_packed(count(overlap_mask)))
+                    allocate(point_radius_packed(count(overlap_mask)))
+                    allocate(vec_matrix_packed(low_dimension, count(overlap_mask)))
+
+                    dist_packed = pack(sqrt(rij2_vector), overlap_mask)
+
+                    point_radius_packed = pack(point_radius(i+1:reduced_number_points), overlap_mask)
+
+                    vec_matrix_packed= -pos_matrix(:, pack([(j, j=1, reduced_number_points-i)],overlap_mask))/spread(dist_packed, 1, low_dimension)
+                    
+                    dist_packed=(point_radius(i)+point_radius_packed-dist_packed)/2.0_dp
+                    
+                    gradient_matrix(:,i)= gradient_matrix(:,i)+ sum(vec_matrix_packed * spread(dist_packed, 1, low_dimension) * core_strength/2.0_dp, dim=2)
+                    gradient_matrix(:,pack([(i+j, j=1, reduced_number_points-i)],overlap_mask))= gradient_matrix(:,pack([(i+j, j=1, reduced_number_points-i)],overlap_mask))-vec_matrix_packed* spread(dist_packed, 1, low_dimension)*core_strength/2.0_dp
+
+                    cost=cost+sum(dist_packed*dist_packed/2.0_dp*core_strength)
+
+                    deallocate(vec_matrix_packed)
+                    deallocate(dist_packed)
+                    deallocate(point_radius_packed)
+
+                end if 
+                deallocate(overlap_mask)
+
+                 
+            end if
+
             deallocate(pos_matrix)
             deallocate(vec_matrix)
             deallocate(rij2_vector)
             deallocate(pij_vector)
             deallocate(qij_vector)
             deallocate(factor)
-
+    
         end do
         !$omp end parallel do
-                
-        if (growth_switch) then
-            !$omp parallel do private(pos, rij2, dist, vec) reduction(+:gradient_matrix,cost) schedule(dynamic)
-            do i=1,reduced_number_points
-                do j=i+1,reduced_number_points
-                    pos(:)=low_dimension_position(:,i)-low_dimension_position(:,j)
-                    rij2=dot_product(pos,pos)
-                    dist=sqrt(rij2)
-                    if(dist < point_radius(i)+point_radius(j)) then
-                        vec(:)=-pos/dist
-                        dist=(point_radius(i)+point_radius(j)-dist)/2.0_dp
-                        gradient_matrix(:,i)=gradient_matrix(:,i)+vec(:)*dist*core_strength/2.0_dp
-                        gradient_matrix(:,j)=gradient_matrix(:,j)-vec(:)*dist*core_strength/2.0_dp
-                        cost=cost+dist**2/2.0_dp*core_strength
-                    end if
-                end do
-            end do
-            !$omp end parallel do
-            write (*,*) 'Growth phase, cost: ', cost
-        end if
 
+        gradient_vector = reshape(gradient_matrix,(/low_dimension*reduced_number_points/))
+
+        call gradient_vector_addnoise(gradient_vector, 1e-2_dp)
 
     end subroutine loss_gradient_vectorisation
 
 
-    subroutine loss_gradient_core (gradient_matrix, cost, growth_switch)
+    subroutine loss_gradient_core (rij2_vector, pos_matrix, gradient_matrix, cost, growth_switch)
 
         implicit none
-        logical, intent(in)                                                 :: growth_switch
-        real(kind=dp), dimension(low_dimension, number_points), intent(out) :: gradient_matrix
-        real(kind=dp), intent(out)                                          :: cost
-        real(kind=dp), dimension(low_dimension)                             :: vec, pos
-        real(kind=dp) :: dist, rij2, qij, z
+        logical, intent(in)                                                   :: growth_switch
+        real(kind=dp), dimension(:), allocatable, intent(in)                  :: rij2_vector
+        real(kind=dp), dimension(:,:), allocatable, intent(in)                :: pos_matrix
+        real(kind=dp), dimension(low_dimension, number_points), intent(inout) :: gradient_matrix
+        real(kind=dp), intent(inout)                                          :: cost
+        real(kind=dp), dimension(:), allocatable                              :: point_radius_packed, dist_packed
+        real(kind=dp), dimension(:,:), allocatable                            :: vec_matrix_packed
+        logical, dimension(:), allocatable                                    :: overlap_mask
         integer:: i, j
 
-        if (.not.growth_switch) return
+        overlap_mask = sqrt(rij2_vector) < (spread(point_radius(i), 1, reduced_number_points-i)+point_radius(i+1:reduced_number_points))
+        
+        if (any(overlap_mask)) then
+            allocate(dist_packed(count(overlap_mask)))
+            allocate(point_radius_packed(count(overlap_mask)))
+            allocate(vec_matrix_packed(low_dimension, count(overlap_mask)))
 
-        z = real(reduced_number_points, dp) * (real(reduced_number_points, dp)-1.0_dp)
+            dist_packed = pack(sqrt(rij2_vector), overlap_mask)
 
-        !$omp parallel do private(pos, dist) reduction(+:gradient_matrix,cost) schedule(dynamic)
-        do i = 1, reduced_number_points
-            do j = i+1, reduced_number_points
+            point_radius_packed = pack(point_radius(i+1:reduced_number_points), overlap_mask)
 
-                pos(:)=low_dimension_position(:,i)-low_dimension_position(:,j)
-                rij2=dot_product(pos,pos)
-                qij=1.0_dp/(1.0_dp+rij2)/z
-                dist=sqrt(rij2)
+            vec_matrix_packed= -pos_matrix(:, pack([(j, j=1, reduced_number_points-i)],overlap_mask))/spread(dist_packed, 1, low_dimension)
+            
+            dist_packed=(point_radius(i)+point_radius_packed-dist_packed)/2.0_dp
+            
+            gradient_matrix(:,i)= gradient_matrix(:,i)+ sum(vec_matrix_packed * spread(dist_packed, 1, low_dimension) * core_strength/2.0_dp, dim=2)
+            gradient_matrix(:,pack([(i+j, j=1, reduced_number_points-i)],overlap_mask))= gradient_matrix(:,pack([(i+j, j=1, reduced_number_points-i)],overlap_mask))-vec_matrix_packed* spread(dist_packed, 1, low_dimension)*core_strength/2.0_dp
 
-                
-            end do
-        end do
-        !$omp end parallel do
+            cost=cost+sum(dist_packed*dist_packed/2.0_dp*core_strength)
+
+            deallocate(vec_matrix_packed)
+            deallocate(dist_packed)
+            deallocate(point_radius_packed)
+
+        end if 
+        deallocate(overlap_mask)
+        
     end subroutine loss_gradient_core
 
 
@@ -311,27 +338,26 @@ contains
 
     end function calculating_cost_zero
 
-    subroutine random_point_in_hypersphere(vec,r) 
+    subroutine gradient_vector_addnoise(gradient_vector, r) 
 
-        integer                                  :: n
+        real(kind=dp)                              :: d
+        real(kind=dp),               intent(in)    :: r
+        real(kind=dp), dimension(:), intent(inout) :: gradient_vector
+        real(kind=dp), dimension(size(gradient_vector)) :: noise_vector
 
-        real(kind=dp)                            :: d
-        real(kind=dp),               intent(in)  :: r
-        real(kind=dp), dimension(:), intent(out) :: vec
-
-        n=size(vec)
-
-        vec=0.0_dp
+        noise_vector=0.0_dp
 
         call random_number(d)
         
-        d= r*d**(1/real(n,dp))
+        d= r*d**(1/real(size(gradient_vector),dp))
 
-        call random_add_noise(vec,1.0_dp)
+        call random_add_noise(noise_vector,1.0_dp)
 
-        vec=d*vec/norm2(vec)
+        noise_vector=d*noise_vector/norm2(noise_vector)
 
-    end subroutine random_point_in_hypersphere
+        gradient_vector=gradient_vector+noise_vector
+
+    end subroutine gradient_vector_addnoise
 
 
 end MODULE optimisation
