@@ -12,40 +12,27 @@ include 'mpif.h'
     USE mpi_model 
         
     character(len=256) :: filename
-    integer ierr, tag
+    integer ierr, tag, rank, nranks
+    integer, parameter  :: master = 0 
+
+    call omp_set_num_threads(8)
 
     call MPI_Init(ierr)
     call MPI_Comm_rank(MPI_COMM_WORLD, rank, ierr)
     call MPI_Comm_size(MPI_COMM_WORLD, nranks, ierr)
 
-    ! Initialize the filename
+    if (rank == master) then 
 
-    call omp_set_num_threads(8)
-
-    if (rank == 0) then
         call get_command_argument(1, filename)
         if (trim(filename) == '') then
             print *, 'No filename provided.'
             stop
         end if
 
-        print *, 'Reading data from file:', trim(filename)
-
-        ! Read the data from the file
         call read_file(trim(filename))
-
-        if (allocated(data_vec)) then
-            print *, 'Data read from file:'
-        
-            if (size(data_vec, 1) > 0 ) then
-                print *, number_points, 'points read.'
-            else
-                print *, 'Data array is empty or dimensions are zero.'
-            end if
-
-        else
-            print *, 'No data read or allocation failed.'
-        end if
+        call initialise()
+        call high_dimension_probability()
+        call low_dimension_probability()
 
         call normalisation(data_vec, number_points, number_features)
         
@@ -57,18 +44,18 @@ include 'mpif.h'
         call low_dimension_distribution()
         write (*,*) 'Optimising the low dimension distribution'
 
-        
+    end if
 
-    else 
-        call tpsd_mpi(threshold, maxsteps, nranks, ierr)
-
+    if (rank == master) then 
+        call master_process(size, threshold, maxsteps)
+    else
+        call worker_process(rank, threshold, maxsteps)
     end if
 
     call MPI_Finalize(ierr)
 
-    write(*,*) 'final cost = ', cost
-
-    if (rank == 0) then
+    if (rank == master) then
+        write(*,*) 'final cost = ', cost
         call write_file(trim('LJ13-sheap.xyz'))
     end if
 

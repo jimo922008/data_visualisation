@@ -12,6 +12,8 @@ MODULE optimisation
     PUBLIC :: loss_gradient
     PUBLIC :: calculate_stepsize
     PUBLIC :: initialize_variables
+    PUBLIC :: loss_gradient_position
+    PUBLIC :: loss_gradient_core
 
     real(kind=dp) :: cost_zero, final_cost, z, inv_z
 
@@ -30,14 +32,12 @@ contains
         integer,       intent(in) :: maxsteps 
         real(kind=dp), intent(in) :: threshold
         real(kind=dp)             :: cost, step_size, gradient_norm, running_gradient_norm
-        real(kind=dp)             :: gradient_vector(low_dimension*reduced_number_points)
-        real(kind=dp)             :: position_vector(low_dimension*reduced_number_points)
-        integer                   :: i, growth_start_step
-        logical                   :: growth_switch = .false.
+        real(kind=dp)             :: gradient_matrix(low_dimension, reduced_number_points)
+        integer                   :: i, j
         logical                   :: growth_step_limit = .true.
 
-  
-        call initialize_variables(cost_zero, gradient_norm, running_gradient_norm, i, position_vector)
+        call start_timer()
+        call initialize_variables(i, j, gradient_norm, running_gradient_norm)
 
         do while((((running_gradient_norm > log10(threshold*growth_coeff) .or. (i < 100+exag_cutoff))) .and. (i < maxsteps)))
             
@@ -45,76 +45,67 @@ contains
 
             exageration = merge (1.0_dp, exageration, i > exag_cutoff)
 
-            call loss_gradient_position(gradient_vector, cost, exageration)
+            call loss_gradient_position(gradient_matrix, cost, exageration)
 
-            step_size = calculate_stepsize(position_vector, gradient_vector, init = ((i == 1) .or. (i == exag_cutoff)))
+            step_size = calculate_stepsize(low_dimension_position, gradient_matrix, init = ((i == 1) .or. (i == exag_cutoff)))
 
-            position_vector=position_vector - step_size*gradient_vector
+            low_dimension_position=low_dimension_position - step_size*gradient_matrix
 
-            low_dimension_position=reshape(position_vector,(/low_dimension,reduced_number_points/))
+            gradient_norm=abs(sum(step_size*gradient_matrix*gradient_matrix))
 
-            gradient_norm=abs(dot_product(step_size*gradient_vector,gradient_vector))
-
-            running_gradient_norm=running_gradient_norm + (log10(gradient_norm)-running_gradient_norm)/min(i,100)
-
-            write (*,*) 'Step: ', step_size, 'Cost: ', cost, 'Gradient norm: ', running_gradient_norm   
+            running_gradient_norm=running_gradient_norm + (log10(gradient_norm)-running_gradient_norm)/min(i,100)  
 
         end do 
 
         write (*,*) 'Growth phase'
-        growth_start_step = i
+        
     
-        do while (((running_gradient_norm > log10(threshold)) .or. (growth_step_limit)) .and. (i<maxsteps))
-            i = i + 1
+        do while (((running_gradient_norm > log10(threshold)) .or. (growth_step_limit)) .and. (i+j<maxsteps))
+            j = j + 1
 
-            call loss_gradient_core(gradient_vector, cost)
+            call loss_gradient_core(gradient_matrix, cost)
 
-            step_size = calculate_stepsize(position_vector, gradient_vector)
+            step_size = calculate_stepsize(low_dimension_position, gradient_matrix, init = ((i == 1) .or. (i == exag_cutoff)))
 
-            position_vector=position_vector - step_size*gradient_vector
+            low_dimension_position=low_dimension_position - step_size*gradient_matrix
 
-            low_dimension_position=reshape(position_vector,(/low_dimension,reduced_number_points/))
-
-            gradient_norm=abs(dot_product(step_size*gradient_vector,gradient_vector))
+            gradient_norm=abs(sum(step_size*gradient_matrix*gradient_matrix))
 
             running_gradient_norm=running_gradient_norm + (log10(gradient_norm)-running_gradient_norm)/min(i,100)
 
-            call handle_growth_phase(i, growth_start_step, growth_step_limit)
-
-            write (*,*) 'Step: ', i, 'Cost: ', cost, 'Gradient norm: ', running_gradient_norm   
-            write (*,*) 'Point radius: ', sum(point_radius)
+            call handle_growth_phase(i, j, growth_step_limit)
 
         end do
 
         final_cost=cost
 
         write (*,*) 'Final cost: ', final_cost
-        
+        call stop_timer()
+        write (*,*) 'Time: ', elapsed_time()
     end subroutine tpsd
 
-    subroutine initialize_variables(cost_zero, gradient_norm, running_gradient_norm, i, position_vector)
+    subroutine initialize_variables(i, j, gradient_norm, running_gradient_norm)
         implicit none
-        real(kind=dp), intent(out) :: cost_zero, gradient_norm, running_gradient_norm
-        integer, intent(out)       :: i
-        real(kind=dp), dimension(low_dimension*reduced_number_points), intent(out) :: position_vector
 
+        integer, intent(out) :: i, j
+        real(kind=dp), intent(out) :: gradient_norm, running_gradient_norm
+    
         i=0
+        j=0
         gradient_norm=huge(1.0_dp)
         running_gradient_norm=0.0_dp
         cost_zero = calculating_cost_zero(pij)
         z = real(reduced_number_points, dp) * (real(reduced_number_points, dp)-1.0_dp)
         inv_z = 1.0_dp/z
-        position_vector = reshape(low_dimension_position,(/low_dimension*reduced_number_points/))
     end subroutine initialize_variables
 
-    subroutine loss_gradient_position(gradient_vector, cost, exageration)
+    subroutine loss_gradient_position(gradient_matrix, cost, exageration)
         implicit none
         
         real(kind=dp),  intent(in)  :: exageration
         real(kind=dp),  intent(out) :: cost
-        real(kind=dp),  intent(out) :: gradient_vector (low_dimension* reduced_number_points)
 
-        real(kind=dp), dimension(low_dimension, reduced_number_points)      :: gradient_matrix
+        real(kind=dp), dimension(low_dimension, reduced_number_points), intent(inout)      :: gradient_matrix
         real(kind=dp), dimension(:, :), allocatable                         :: vec_matrix, pos_matrix
         real(kind=dp), dimension(:), allocatable                            :: rij2_vector, pij_vector, qij_vector, factor
         integer                                                             :: i
@@ -151,23 +142,20 @@ contains
         end do
         !$omp end parallel do
 
-        gradient_vector = reshape(gradient_matrix,(/low_dimension*reduced_number_points/))
-
-        call gradient_vector_addnoise(gradient_vector, 1e-2_dp)
+        call gradient_matrix_addnoise(gradient_matrix, 1e-2_dp)
 
     end subroutine loss_gradient_position
 
-    subroutine loss_gradient_core (gradient_vector, cost)
+    subroutine loss_gradient_core (gradient_matrix, cost)
 
         implicit none
-        real(kind=dp)                                                         :: gradient_matrix(low_dimension, reduced_number_points)
+        real(kind=dp), intent(inout)                                          :: gradient_matrix(low_dimension, reduced_number_points)
         real(kind=dp), dimension(:, :), allocatable                           :: vec_matrix, pos_matrix
         real(kind=dp), dimension(:), allocatable                              :: rij2_vector, pij_vector, qij_vector, factor
         real(kind=dp), intent(out)                                            :: cost
         real(kind=dp), dimension(:), allocatable                              :: point_radius_packed, dist_packed
         real(kind=dp), dimension(:,:), allocatable                            :: vec_matrix_packed
         logical, dimension(:), allocatable                                    :: overlap_mask
-        real(kind=dp), intent(out)                                            :: gradient_vector(low_dimension*reduced_number_points)
         integer:: i, j
 
         cost = cost_zero
@@ -209,7 +197,7 @@ contains
                 
                 gradient_matrix(:,i)= gradient_matrix(:,i)+ sum(vec_matrix_packed * spread(dist_packed, 1, low_dimension) * core_strength/2.0_dp, dim=2)
                 gradient_matrix(:,pack([(i+j, j=1, reduced_number_points-i)],overlap_mask))= gradient_matrix(:,pack([(i+j, j=1, reduced_number_points-i)],overlap_mask))-vec_matrix_packed* spread(dist_packed, 1, low_dimension)*core_strength/2.0_dp
-
+                
                 cost=cost+sum(dist_packed*dist_packed/2.0_dp*core_strength)
 
                 deallocate(vec_matrix_packed)
@@ -227,9 +215,7 @@ contains
         end do
         !$omp end parallel do
 
-        gradient_vector = reshape(gradient_matrix,(/low_dimension*reduced_number_points/))
-
-        call gradient_vector_addnoise(gradient_vector, 1e-2_dp)
+        call gradient_matrix_addnoise(gradient_matrix, 1e-2_dp)
         
         
     end subroutine loss_gradient_core
@@ -237,19 +223,19 @@ contains
 
     function calculate_stepsize(current_position, current_gradient, init) result(step_size)
 
-        logical, optional, intent(in)                                 :: init
-        real(kind=dp), dimension(:), intent(in)                       :: current_position, current_gradient
-        real(kind=dp), save, allocatable, dimension(:)                :: previous_position, previous_gradient
-        real(kind=dp), dimension(size(current_position))              :: position_change, gradient_change
-        real(kind=dp)                                                 :: gradient_change_magnitude, position_gradient_dot_product
-        real(kind=dp)                                                 :: step_size
-        real(kind=dp), parameter                                      :: default_step_size=1e-1_dp
+        logical, optional, intent(in)                                   :: init
+        real(kind=dp), dimension(:,:), intent(in)                       :: current_position, current_gradient
+        real(kind=dp), save, allocatable, dimension(:,:)                :: previous_position, previous_gradient
+        real(kind=dp), dimension(size(current_position,1), size(current_position,2))              :: position_change, gradient_change
+        real(kind=dp)                                                   :: gradient_change_magnitude, position_gradient_dot_product
+        real(kind=dp)                                                   :: step_size
+        real(kind=dp), parameter                                        :: default_step_size=1e-1_dp
 
         if(init) then
             if (allocated(previous_position)) deallocate(previous_position)
             if (allocated(previous_gradient)) deallocate(previous_gradient)
-            allocate(previous_position(size(current_position)))
-            allocate(previous_gradient(size(current_gradient)))
+            allocate(previous_position(size(current_position,1), size(current_position,2)))
+            allocate(previous_gradient(size(current_gradient,1), size(current_gradient,2)))
             step_size=default_step_size
         
         else
@@ -257,8 +243,8 @@ contains
             position_change=current_position- previous_position
             gradient_change=current_gradient- previous_gradient
 
-            gradient_change_magnitude=dot_product(gradient_change,gradient_change)
-            position_gradient_dot_product=dot_product(position_change,gradient_change)
+            gradient_change_magnitude=sum(gradient_change*gradient_change)
+            position_gradient_dot_product=sum(position_change*gradient_change)
         
             step_size=abs(position_gradient_dot_product/gradient_change_magnitude)
         
@@ -294,46 +280,42 @@ contains
 
     end function calculating_cost_zero
 
-    subroutine gradient_vector_addnoise(gradient_vector, r) 
+    subroutine gradient_matrix_addnoise(gradient_matrix, r) 
 
         real(kind=dp)                              :: d
         real(kind=dp),               intent(in)    :: r
-        real(kind=dp), dimension(:), intent(in) :: gradient_vector
-        real(kind=dp), dimension(size(gradient_vector)) :: noise_vector
-        real(kind=dp), dimension(size(gradient_vector)) :: gradient_vector_noise
+        real(kind=dp),                 intent(inout)  :: gradient_matrix (low_dimension, reduced_number_points)
+        real(kind=dp)                             :: noise_vector (reduced_number_points)
 
         noise_vector=0.0_dp
-        gradient_vector_noise=0.0_dp
 
         call random_number(d)
         
-        d= r*d**(1/real(size(gradient_vector),dp))
+        d= r*d**(1/real(reduced_number_points,dp))
 
         call random_add_noise(noise_vector,1.0_dp)
 
         noise_vector = d*noise_vector/norm2(noise_vector)
 
-        gradient_vector_noise = gradient_vector*(1.0_dp+noise_vector)
+        gradient_matrix = gradient_matrix*(1.0_dp+ spread(noise_vector, 1, low_dimension))
 
-    end subroutine gradient_vector_addnoise
+    end subroutine gradient_matrix_addnoise
 
-    subroutine handle_growth_phase(i, growth_start_step, growth_step_limit)
+    subroutine handle_growth_phase(i, j, growth_step_limit)
         implicit none
 
-        integer, intent(in)       :: i
-        integer, intent(in)       :: growth_start_step
+        integer, intent(in)       :: i, j
         logical, intent(inout)    :: growth_step_limit
 
-        if ((i > growth_start_step) .and. (i < growth_start_step + growth_steps)) then
-            if (i < growth_start_step + 2) then
-                point_radius = point_radius * ((real(i)-real(growth_start_step))/real(growth_steps))
+        if (j < growth_steps) then
+            if (j <  2) then
+                point_radius = point_radius * (real(j))/real(growth_steps)
             else
-                point_radius = point_radius * ((real(i)-real(growth_start_step))*1.0_dp/real(growth_steps))&
-                /((real(i)-real(growth_start_step)-1.0_dp)*1.0_dp/real(growth_steps))
+                point_radius = point_radius * (real(j)*1.0_dp/real(growth_steps))/((real(j)-1.0_dp)*1.0_dp/real(growth_steps))
             end if
         end if
 
-        if(i > (growth_start_step+growth_steps+100)) growth_step_limit=.false.
+        if(j > (growth_steps+100)) growth_step_limit=.false.
 
     end subroutine handle_growth_phase
     
