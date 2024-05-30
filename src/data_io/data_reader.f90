@@ -82,6 +82,19 @@ contains
         
         close(unit)
 
+        if (allocated(data_vec)) then
+            print *, 'Data read from file:'
+        
+            if (size(data_vec, 1) > 0 ) then
+                print *, number_points, 'points read.'
+            else
+                print *, 'Data array is empty or dimensions are zero.'
+            end if
+
+        else
+            print *, 'No data read or allocation failed.'
+        end if
+
     end subroutine read_file
 
 end module data_reader
