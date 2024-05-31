@@ -8,16 +8,14 @@ add_library(solver_lib
 
 target_link_libraries(solver_lib
             PRIVATE
-            constants_lib
-            dataio_lib
+            parameters_lib
+            datain_lib
             timing_lib
-            ${NETCDF_LIBRARIES}
             )
 
 target_include_directories(solver_lib
                  PUBLIC
-                 ${NETCDF_INCLUDE_DIRS}
-                 ${CMAKE_BINARY_DIR}/src/constants
+                 ${CMAKE_BINARY_DIR}/src/parameters
                  ${CMAKE_BINARY_DIR}/src/data_io
                  ${CMAKE_BINARY_DIR}/src/timing
 )

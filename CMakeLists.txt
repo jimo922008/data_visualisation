@@ -5,17 +5,20 @@ project(sheap
         DESCRIPTION "Sheap project using Fortran" 
         LANGUAGES Fortran)
 
+# Set the Fortran compiler
+set(CMAKE_Fortran_COMPILER "/opt/homebrew/bin/gfortran")
+
 set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -std=f2008")
 set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -ffree-line-length-none")
-set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -O3 -fexternal-blas -march=native -ffast-math -funroll-loops")
-set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fopenmp")
+set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS}  -g -O0")
+#set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fopenmp")
 enable_testing()
 
 # Compiler options for different build types
 set(CMAKE_Fortran_FLAGS_DEBUG "-O0 -g -fimplicit-none -Wall -Wextra")
 set(CMAKE_Fortran_FLAGS_RELEASE "-Ofast -fexternal-blas -march=native -ffast-math -funroll-loops")
 
-find_package(OpenMP REQUIRED)
+#find_package(OpenMP REQUIRED)
 find_package(MPI REQUIRED)
 find_package(BLAS REQUIRED)
 

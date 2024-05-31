@@ -3,13 +3,12 @@ add_library(timing_lib
             timing.f90
             )
 
-target_link_libraries(solver_lib
+target_link_libraries(timing_lib
             PRIVATE
-            constants_lib
-            ${NETCDF_LIBRARIES})
+            parameters_lib
+            )
 
-target_include_directories(solver_lib
+target_include_directories(timing_lib
                  PUBLIC
-                 ${NETCDF_INCLUDE_DIRS}
-                 ${CMAKE_BINARY_DIR}/src/constants
+                 ${CMAKE_BINARY_DIR}/src/parameters
 )

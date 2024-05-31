@@ -1,142 +1,283 @@
-MODULE mpi_model 
-    
-    USE data_reader
-    USE initialisation
-    USE high_dimension
-    USE low_dimension_probability
-    use optimisation
-    use constants
+MODULE mpi_model
 
-    IMPLICIT NONE
+   include 'mpif.h'
 
-contains 
+   USE data_reader
+   USE initialisation
+   USE high_dimension
+   USE low_dimension_probability
+   use optimisation
+   use parameters
 
-    SUBROUTINE master_process(size, threshold, maxsteps)
+   IMPLICIT NONE
 
-        USE MPI
+contains
 
-        IMPLICIT NONE
+   subroutine tpsd_mpi(threshold, maxsteps, rank, nranks)
 
-        INTEGER, INTENT(IN)       :: size, maxsteps
-        REAL(kind=dp), INTENT(IN) :: threshold
-        INTEGER :: ierr, task, source, tag, completed_tasks
-        INTEGER :: i, j
-        INTEGER :: status(MPI_STATUS_SIZE)
-        REAL(kind=dp) :: cost, step_size, gradient_norm, running_gradient_norm
-        REAL(kind=dp) :: gradient_vector(low_dimension*reduced_number_points), position_vector(low_dimension*reduced_number_points)
+      implicit none
+      integer, intent(in) :: maxsteps, rank, nranks
+      real(kind=dp), intent(in) :: threshold
+      real(kind=dp) :: cost, step_size, gradient_norm, running_gradient_norm
+      real(kind=dp) :: gradient_matrix(low_dimension, reduced_number_points)
+      integer :: i, j, ierr, work, start, end, flag, source, dest
+      integer :: status(MPI_STATUS_SIZE)
+      logical :: growth_step_limit = .true.
 
-        task = 0
-        completed_tasks = 0 
+      if (rank == 0) then
+         call start_timer()
+      end if
 
-        call initialise_variables(cost, gradient_norm, running_gradient_norm, i, position_vector)
+      call initialize_variables(i, j, gradient_norm, running_gradient_norm)
 
-        do while((running_gradient_norm > log10(threshold) .or. (i < 100+nexag)) .and. (i < maxsteps))
-                
-            i = i + 1
+      ! Main optimization loop
+      do while ((((running_gradient_norm > log10(threshold*growth_coeff) .or. (i < 100 + exag_cutoff))) .and. (i < maxsteps)))
 
-            exageration = merge(1.0_dp, exageration, i > nexag)
+         i = i + 1
+         exageration = merge(1.0_dp, exageration, i > exag_cutoff)
 
-            call distribute_tasks(position_vector, gradient_vector, nranks)
+         call loss_gradient_position_mpi(gradient_matrix, cost, exageration, rank, nranks, i, maxsteps)
 
-            call gather_results(gradient_vector, cost, local_gradient_matrix, local_cost)
+         step_size = calculate_stepsize(low_dimension_position, gradient_matrix, init=((i == 1) .or. (i == exag_cutoff)))
 
-            step_size = calculate_stepsize(position_vector, gradient_vector, init = ((i == 1) .or. (i == nexag)))
+         low_dimension_position = low_dimension_position - step_size*gradient_matrix
 
-            position_vector=position_vector - step_size*gradient_vector
+         gradient_norm = abs(sum(step_size*gradient_matrix*gradient_matrix))
 
-            low_dimension_position=reshape(position_vector,(/low_dimension,reduced_number_points/))
+         running_gradient_norm = running_gradient_norm + (log10(gradient_norm) - running_gradient_norm)/min(i, 100)
 
-            gradient_norm=abs(dot_product(step_size*gradient_vector,gradient_vector))
+      end do
 
-            running_gradient_norm=running_gradient_norm + (log10(gradient_norm)-running_gradient_norm)/min(i,100)
+      if (rank == 0) then
+         write (*, *) 'Growth phase'
+      end if
 
-        end do
+      do while (((running_gradient_norm > log10(threshold)) .or. (growth_step_limit)) .and. (i + j < maxsteps))
+         j = j + 1
 
-        growth_switch = .true.
-        write (*,*) 'Growth phase'
-        growth_start_step = i
-    
-        do while (((running_gradient_norm > log10(threshold)) .or. (growth_step_limit)) .and. (i<maxsteps))
-            i = i + 1
+         call loss_gradient_core_mpi(gradient_matrix, cost, rank, nranks, i, maxsteps)
 
-            call distribute_tasks(position_vector, gradient_vector, nranks)
+         step_size = calculate_stepsize(low_dimension_position, gradient_matrix, init=((i == 1) .or. (i == exag_cutoff)))
 
-            call gather_results(gradient_vector, cost, local_gradient_matrix, local_cost)
+         low_dimension_position = low_dimension_position - step_size*gradient_matrix
 
-            step_size = calculate_stepsize(position_vector, gradient_vector)
+         gradient_norm = abs(sum(step_size*gradient_matrix*gradient_matrix))
 
-            position_vector=position_vector - step_size*gradient_vector
+         running_gradient_norm = running_gradient_norm + (log10(gradient_norm) - running_gradient_norm)/min(i, 100)
 
-            low_dimension_position=reshape(position_vector,(/low_dimension,reduced_number_points/))
+         call handle_growth_phase(i, j, growth_step_limit)
+      end do
 
-            gradient_norm=abs(dot_product(step_size*gradient_vector,gradient_vector))
+      if (rank == 0) then
+         final_cost = cost
+         write (*, *) 'Final cost: ', final_cost
+         call stop_timer()
+         write (*, *) 'Time: ', elapsed_time()
+      end if
+   end subroutine tpsd_mpi
 
-            running_gradient_norm=running_gradient_norm + (log10(gradient_norm)-running_gradient_norm)/min(i,100)
+   subroutine loss_gradient_position_mpi(gradient_matrix, cost, exageration, rank, nranks, iter, maxsteps)
+      implicit none
+      real(kind=dp), intent(in) :: exageration
+      real(kind=dp), intent(out) :: cost
+      real(kind=dp), dimension(low_dimension, reduced_number_points), intent(inout) :: gradient_matrix
+      real(kind=dp), dimension(:, :), allocatable :: vec_matrix, pos_matrix
+      real(kind=dp), dimension(:), allocatable :: rij2_vector, pij_vector, qij_vector, factor
+      integer :: i, ierr, work, start, end, status(MPI_STATUS_SIZE), source, dest
+      integer, parameter :: tag = 1
+      real(kind=dp) :: local_cost
 
-            call handle_growth_phase(i, growth_start_step, growth_step_limit)
+      cost = 0.0_dp
+      gradient_matrix = 0.0_dp
 
-        end do
+      if (rank == 0) then
+         ! Master process
+         work = 0
+         do dest = 1, nranks - 1
+            call MPI_Send(work, 1, MPI_INTEGER, dest, tag, MPI_COMM_WORLD, ierr)
+            work = work + 1
+         end do
 
-        write (*,*) 'Final cost: ', final_cost
+         ! Receive results from worker processes
+         do while (work < reduced_number_points .or. flag > 0)
+            call MPI_Iprobe(MPI_ANY_SOURCE, tag, MPI_COMM_WORLD, flag, status, ierr)
+            if (flag > 0) then
+               source = status(MPI_SOURCE)
+           call MPI_Recv(gradient_matrix, low_dimension*reduced_number_points, MPI_REAL8, source, tag, MPI_COMM_WORLD, status, ierr)
+               call MPI_Recv(local_cost, 1, MPI_REAL8, source, tag, MPI_COMM_WORLD, status, ierr)
+               cost = cost + local_cost
 
-    end subroutine master_process
-    
-    
-    subroutine worker_process(rank, threshold, maxsteps)
-        implicit none
+               if (work < reduced_number_points) then
+                  call MPI_Send(work, 1, MPI_INTEGER, source, tag, MPI_COMM_WORLD, ierr)
+                  work = work + 1
+               else
+                  call MPI_Send(-1, 1, MPI_INTEGER, source, tag, MPI_COMM_WORLD, ierr)
+               end if
+            end if
+         end do
 
-        integer, intent(in) :: rank, maxsteps
-        real(kind=dp), intent(in) :: threshold
+      else
+         ! Worker process
+         do
+            call MPI_Recv(work, 1, MPI_INTEGER, 0, tag, MPI_COMM_WORLD, status, ierr)
+            if (work == -1) exit
 
-        integer :: ierr, task, source, tag
-        integer :: i, j
-        integer :: status(MPI_STATUS_SIZE)
-        real(kind=dp) :: cost, step_size, gradient_norm, running_gradient_norm
-        real(kind=dp) :: gradient_vector(low_dimension*reduced_number_points), position_vector(low_dimension*reduced_number_points)
-        logical :: growth_switch = .false.
-        logical :: growth_step_limit = .true.
+            start = work*(reduced_number_points/nranks) + 1
+            end = min((work + 1)*(reduced_number_points/nranks), reduced_number_points)
 
-        call initialise_variables(cost, gradient_norm, running_gradient_norm, i, position_vector)
+            local_cost = 0.0_dp
+            !$omp parallel do private(pos_matrix, rij2_vector, qij_vector, vec_matrix, pij_vector, factor) reduction(+:gradient_matrix, local_cost) schedule(dynamic)
+            do i = start, end
+               allocate (pos_matrix(low_dimension, reduced_number_points - i))
+               allocate (vec_matrix(low_dimension, reduced_number_points - i))
+               allocate (rij2_vector(reduced_number_points - i))
+               allocate (pij_vector(reduced_number_points - i))
+               allocate (qij_vector(reduced_number_points - i))
+               allocate (factor(reduced_number_points - i))
 
-        call MPI_Recv(task, 1, MPI_INTEGER, 0, 0, MPI_COMM_WORLD, status, ierr)
+                    pos_matrix = spread(low_dimension_position(:, i), 2, reduced_number_points - i) - low_dimension_position(:, i + 1:reduced_number_points)
+               rij2_vector = sum(pos_matrix*pos_matrix, dim=1)
+               qij_vector = inv_z/(1.0_dp + rij2_vector)
+               pij_vector = pij(i + 1:reduced_number_points, i)
+               factor = 4.0_dp*z*(exageration*pij_vector - (1 - pij_vector)/(1 - qij_vector)*qij_vector)*qij_vector
+               vec_matrix = spread(factor, 1, low_dimension)*pos_matrix
+               gradient_matrix(:, i) = gradient_matrix(:, i) + sum(vec_matrix, dim=2)
+               gradient_matrix(:, i + 1:reduced_number_points) = gradient_matrix(:, i + 1:reduced_number_points) - vec_matrix
+                    local_cost = local_cost - sum(pij(i + 1:reduced_number_points, i) * log(qij_vector) * 2.0_dp - (1 - pij(i + 1:reduced_number_points, i)) * log(1 - qij_vector) * 2.0_dp)
 
-        call loss_gradient_vectorisation(position_vector, gradient_vector, cost)
+               deallocate (pos_matrix)
+               deallocate (vec_matrix)
+               deallocate (rij2_vector)
+               deallocate (pij_vector)
+               deallocate (qij_vector)
+               deallocate (factor)
+            end do
+            !$omp end parallel do
 
-        call MPI_Send(gradient_vector, low_dimension*reduced_number_points, MPI_REAL, 0, 0, MPI_COMM_WORLD, ierr)
-    
-    end subroutine worker_process
+            call MPI_Send(gradient_matrix, low_dimension*reduced_number_points, MPI_REAL8, 0, tag, MPI_COMM_WORLD, ierr)
+            call MPI_Send(local_cost, 1, MPI_REAL8, 0, tag, MPI_COMM_WORLD, ierr)
+         end do
+      end if
 
-    subroutine distribute_work(position_vector, current_iteration, nranks)
-        
-        implicit none
-        real(kind=dp), intent(in) :: position_vector(:)
-        
-        integer, intent(in) :: current_iteration, nranks
-        integer :: ierr, tag, task, j
+      ! Reduce results across all processes
+    call MPI_Allreduce(MPI_IN_PLACE, gradient_matrix, low_dimension*reduced_number_points, MPI_REAL8, MPI_SUM, MPI_COMM_WORLD, ierr)
+      call MPI_Allreduce(MPI_IN_PLACE, cost, 1, MPI_REAL8, MPI_SUM, MPI_COMM_WORLD, ierr)
 
-        if (task <= reduced_number_points) then
-            call MPI_Send(task, 1, MPI_INTEGER, j, 0, MPI_COMM_WORLD, ierr)
-            task = task + 1
-        else 
-            call MPI_Send(-1, 1, MPI_INTEGER, j, 0, MPI_COMM_WORLD, ierr)
-        end if
-    end subroutine distribute_work
-    
-    subroutine gather_results(gradient_vector, cost, local_gradient_matrix, local_cost)
-        
-        implicit none
-        real(kind=dp), intent(inout) :: gradient_vector(:)
-        real(kind=dp), intent(inout) :: cost
-        real(kind=dp), intent(in) :: local_gradient_matrix(:,:), local_cost(:)
-        
-        integer :: ierr, tag, source
-        integer :: status(MPI_STATUS_SIZE)
-        integer :: i, j
-        
-        call MPI_Recv(gradient_vector, low_dimension*reduced_number_points, MPI_REAL, source, 0, MPI_COMM_WORLD, status, ierr)
-        call MPI_Recv(cost, 1, MPI_REAL, source, 0, MPI_COMM_WORLD, status, ierr)
-        
-        completed_tasks = completed_tasks + 1
-        
-    end subroutine gather_results
-END MODULE mpi_model
+      call gradient_matrix_addnoise(gradient_matrix, 1e-2_dp)
+   end subroutine loss_gradient_position_mpi
+
+   subroutine loss_gradient_core_mpi(gradient_matrix, cost, rank, size, iter, maxsteps)
+      implicit none
+      real(kind=dp), intent(inout) :: gradient_matrix(low_dimension, reduced_number_points)
+      real(kind=dp), dimension(:, :), allocatable :: vec_matrix, pos_matrix
+      real(kind=dp), dimension(:), allocatable :: rij2_vector, pij_vector, qij_vector, factor
+      real(kind=dp), intent(out) :: cost
+      real(kind=dp), dimension(:), allocatable :: point_radius_packed, dist_packed
+      real(kind=dp), dimension(:, :), allocatable :: vec_matrix_packed
+      logical, dimension(:), allocatable :: overlap_mask
+      integer :: i, j, ierr, work, start, end, status(MPI_STATUS_SIZE), source, dest
+      integer, parameter :: tag = 2
+      real(kind=dp) :: local_cost
+
+      cost = 0.0_dp
+      gradient_matrix = 0.0_dp
+
+      if (rank == 0) then
+         ! Master process
+         work = 0
+         do dest = 1, size - 1
+            call MPI_Send(work, 1, MPI_INTEGER, dest, tag, MPI_COMM_WORLD, ierr)
+            work = work + 1
+         end do
+
+         ! Receive results from worker processes
+         do while (work < reduced_number_points .or. flag > 0)
+            call MPI_Iprobe(MPI_ANY_SOURCE, tag, MPI_COMM_WORLD, flag, status, ierr)
+            if (flag > 0) then
+               source = status(MPI_SOURCE)
+           call MPI_Recv(gradient_matrix, low_dimension*reduced_number_points, MPI_REAL8, source, tag, MPI_COMM_WORLD, status, ierr)
+               call MPI_Recv(local_cost, 1, MPI_REAL8, source, tag, MPI_COMM_WORLD, status, ierr)
+               cost = cost + local_cost
+
+               if (work < reduced_number_points) then
+                  call MPI_Send(work, 1, MPI_INTEGER, source, tag, MPI_COMM_WORLD, ierr)
+                  work = work + 1
+               else
+                  call MPI_Send(-1, 1, MPI_INTEGER, source, tag, MPI_COMM_WORLD, ierr)
+               end if
+            end if
+         end do
+
+      else
+         ! Worker process
+         do
+            call MPI_Recv(work, 1, MPI_INTEGER, 0, tag, MPI_COMM_WORLD, status, ierr)
+            if (work == -1) exit
+
+            start = work*(reduced_number_points/size) + 1
+            end = min((work + 1)*(reduced_number_points/size), reduced_number_points)
+
+            local_cost = 0.0_dp
+            !$omp parallel do private(pos_matrix, rij2_vector, qij_vector, vec_matrix, pij_vector, factor, dist_packed, overlap_mask, point_radius_packed, vec_matrix_packed) reduction(+:gradient_matrix, local_cost) schedule(dynamic)
+            do i = start, end
+               allocate (pos_matrix(low_dimension, reduced_number_points - i))
+               allocate (vec_matrix(low_dimension, reduced_number_points - i))
+               allocate (rij2_vector(reduced_number_points - i))
+               allocate (pij_vector(reduced_number_points - i))
+               allocate (qij_vector(reduced_number_points - i))
+               allocate (factor(reduced_number_points - i))
+
+                    pos_matrix = spread(low_dimension_position(:, i), 2, reduced_number_points - i) - low_dimension_position(:, i + 1:reduced_number_points)
+               rij2_vector = sum(pos_matrix*pos_matrix, dim=1)
+               qij_vector = inv_z/(1.0_dp + rij2_vector)
+               pij_vector = pij(i + 1:reduced_number_points, i)
+               factor = 4.0_dp*z*(exageration*pij_vector - (1 - pij_vector)/(1 - qij_vector)*qij_vector)*qij_vector
+               vec_matrix = spread(factor, 1, low_dimension)*pos_matrix
+               gradient_matrix(:, i) = gradient_matrix(:, i) + sum(vec_matrix, dim=2)
+               gradient_matrix(:, i + 1:reduced_number_points) = gradient_matrix(:, i + 1:reduced_number_points) - vec_matrix
+                    local_cost = local_cost - sum(pij(i + 1:reduced_number_points, i) * log(qij_vector) * 2.0_dp - (1 - pij(i + 1:reduced_number_points, i)) * log(1 - qij_vector) * 2.0_dp)
+
+               overlap_mask = sqrt(rij2_vector) < (point_radius(i) + point_radius(i + 1:reduced_number_points))
+
+               if (any(overlap_mask)) then
+                  allocate (dist_packed(count(overlap_mask)))
+                  allocate (point_radius_packed(count(overlap_mask)))
+                  allocate (vec_matrix_packed(low_dimension, count(overlap_mask)))
+
+                  dist_packed = pack(sqrt(rij2_vector), overlap_mask)
+                  point_radius_packed = pack(point_radius(i + 1:reduced_number_points), overlap_mask)
+
+ vec_matrix_packed = -pos_matrix(:, pack([(j, j=1, reduced_number_points - i)], overlap_mask))/spread(dist_packed, 1, low_dimension)
+                  dist_packed = (point_radius(i) + point_radius_packed - dist_packed)/2.0_dp
+
+                        gradient_matrix(:, i) = gradient_matrix(:, i) + sum(vec_matrix_packed * spread(dist_packed, 1, low_dimension) * core_strength / 2.0_dp, dim = 2)
+                        gradient_matrix(:, pack([(i + j, j = 1, reduced_number_points - i)], overlap_mask)) = gradient_matrix(:, pack([(i + j, j = 1, reduced_number_points - i)], overlap_mask)) - vec_matrix_packed * spread(dist_packed, 1, low_dimension) * core_strength / 2.0_dp
+
+                  local_cost = local_cost + sum(dist_packed*dist_packed/2.0_dp*core_strength)
+
+                  deallocate (vec_matrix_packed)
+                  deallocate (dist_packed)
+                  deallocate (point_radius_packed)
+               end if
+
+               deallocate (overlap_mask)
+               deallocate (pos_matrix)
+               deallocate (vec_matrix)
+               deallocate (rij2_vector)
+               deallocate (pij_vector)
+               deallocate (qij_vector)
+               deallocate (factor)
+            end do
+            !$omp end parallel do
+
+            call MPI_Send(gradient_matrix, low_dimension*reduced_number_points, MPI_REAL8, 0, tag, MPI_COMM_WORLD, ierr)
+            call MPI_Send(local_cost, 1, MPI_REAL8, 0, tag, MPI_COMM_WORLD, ierr)
+         end do
+      end if
+
+      ! Reduce results across all processes
+    call MPI_Allreduce(MPI_IN_PLACE, gradient_matrix, low_dimension*reduced_number_points, MPI_REAL8, MPI_SUM, MPI_COMM_WORLD, ierr)
+      call MPI_Allreduce(MPI_IN_PLACE, cost, 1, MPI_REAL8, MPI_SUM, MPI_COMM_WORLD, ierr)
+
+      call gradient_matrix_addnoise(gradient_matrix, 1e-2_dp)
+   end subroutine loss_gradient_core

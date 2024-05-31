@@ -1,62 +1,55 @@
 program main
 
-    USE omp_lib
-    USE data_reader
-    USE data_writer
-    USE initialisation
-    USE high_dimension
-    USE low_dimension_probability
-    USE optimisation
-        
-    integer :: iostat
-    character(len=256) :: filename
+   USE omp_lib
+   USE parameters
+   USE data_reader
+   USE data_writer
+   USE initialisation
+   USE high_dimension
+   USE low_dimension_probability
+   USE optimisation
 
-    ! Initialize the filename
+   character(len=256) :: filename
 
-    call omp_set_num_threads(8)
+   ! Initialize the filename
 
-    call get_command_argument(1, filename)
-    if (trim(filename) == '') then
-        print *, 'No filename provided.'
-        stop
-    end if
+   !call omp_set_num_threads(8)
 
-    print *, 'Reading data from file:', trim(filename)
+   call get_command_argument(1, filename)
+   if (trim(filename) == '') then
+      print *, 'No filename provided.'
+      stop
+   end if
 
-    ! Read the data from the file
-    call read_file(trim(filename))
+   print *, 'Reading data from file:', trim(filename)
 
-    if (allocated(data_vec)) then
-        print *, 'Data read from file:'
-     
-        if (size(data_vec, 1) > 0 ) then
-            print *, number_points, 'points read.'
-        else
-            print *, 'Data array is empty or dimensions are zero.'
-        end if
+   ! Read the data from the file
+   call read_file(trim(filename))
 
-    else
-        print *, 'No data read or allocation failed.'
-    end if
+   if (allocated(data_vec)) then
+      print *, 'Data read from file:'
 
-    call normalisation(data_vec, number_points, number_features)
-    
-    print *, 'Data normalised.'
-    print *, 'Insert the perplexity value: '
-    read *, perplexity
+      if (size(data_vec, 1) > 0) then
+         print *, number_points, 'points read.'
+      else
+         print *, 'Data array is empty or dimensions are zero.'
+      end if
 
-    call high_dimension_distribution()
+   else
+      print *, 'No data read or allocation failed.'
+   end if
 
-    call low_dimension_distribution()
+   call normalisation(data_vec, number_points, number_features)
 
-    write (*,*) 'high_dimension_distribution', pij(1,1), pij(1,2), pij(1,3), pij(1,4), pij(1,5)
-    write (*,*) 'low_dimension_position', low_dimension_position(1,1), low_dimension_position(1,2), low_dimension_position(1,3), low_dimension_position(1,4), low_dimension_position(1,5)
-    write (*,*) 'hard_sphere_initialisation', point_radius(1), point_radius(2), point_radius(3), point_radius(4), point_radius(5)
+   print *, 'Data normalised.'
 
-    write (*,*) 'Optimising the low dimension distribution'
+   call high_dimension_distribution()
 
-    call tpsd(1e-8_dp, 10000)
-    call write_file(trim('LJ13-sheap.xyz'))
+   call low_dimension_distribution()
 
+   write (*, *) 'Optimising the low dimension distribution'
+
+   call tpsd(1e-8_dp, 10000)
+   call write_file(trim('LJ13-sheap.xyz'))
 
 end program main

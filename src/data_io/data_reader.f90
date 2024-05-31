@@ -1,100 +1,100 @@
 MODULE data_reader
 
-    USE constants
-    
-    IMPLICIT NONE
+   USE parameters
 
-    public :: read_file
+   IMPLICIT NONE
 
-    real(kind=dp), dimension(:,:), allocatable  :: data_vec
-    real(kind=dp), dimension(:), allocatable    :: ion_energy, ion_volume
-    integer, dimension (:), allocatable         :: ion_num, point_count
-    character(len= 256), dimension(:), allocatable :: ion_label, ion_symmetry, ion_formula
-        
-    integer, public                             :: number_points, number_features
+   public :: read_file
 
-contains 
+   real(kind=dp), dimension(:, :), allocatable  :: data_vec
+   real(kind=dp), dimension(:), allocatable     :: ion_energy, ion_volume
+   integer, dimension(:), allocatable           :: ion_num, point_count
+   character(len=256), dimension(:), allocatable:: ion_label, ion_symmetry, ion_formula
 
-    subroutine read_file(filename)
+   integer, public                              :: number_points, number_features
 
-        character(len=*), intent(in) :: filename
-        integer :: unit, stat, row, col, number_of_rows
-        character(len=: ), allocatable :: line
+contains
 
-        ! * Open the file
-        open(newunit=unit, file=filename, status='old', action='read', iostat=stat)
+   subroutine read_file(filename)
 
-        print *, 'Reading file: ', filename
+      character(len=*), intent(in) :: filename
+      integer :: unit, stat, col, number_of_rows
+      character(len=:), allocatable :: line
 
-        ! * Count the number of points.
+      ! * Open the file
+      open (newunit=unit, file=filename, status='old', action='read', iostat=stat)
 
-        number_features=0
+      print *, 'Reading file: ', filename
 
-        read(unit, *, iostat= stat) number_features
-        if (stat /= 0) then
-            print *, 'Error reading the number of features'
-            stop
-        end if
+      ! * Count the number of points.
 
-        number_of_rows  = 1
-        number_points = 0
+      number_features = 0
 
-        allocate(character(len=number_features) :: line)
+      read (unit, *, iostat=stat) number_features
+      if (stat /= 0) then
+         print *, 'Error reading the number of features'
+         stop
+      end if
 
-        do
-            read(unit, *, iostat=stat) line
-            if (stat /= 0) then
-                exit  ! Exit the loop on EOF
-            else
-                number_of_rows = number_of_rows + 1
-            endif
-        end do
+      number_of_rows = 1
+      number_points = 0
 
-        number_points = number_of_rows/3
+      allocate (character(len=number_features) :: line)
 
-        rewind(unit) 
-        
-        allocate(data_vec(number_features, number_points), &
-        ion_energy(number_points), ion_volume(number_points), &
-        ion_label(number_points), ion_symmetry(number_points), &
-        ion_formula(number_points), ion_num(number_points), &
-        point_count(number_points))
+      do
+         read (unit, *, iostat=stat) line
+         if (stat /= 0) then
+            exit  ! Exit the loop on EOF
+         else
+            number_of_rows = number_of_rows + 1
+         end if
+      end do
 
-        ! * Read the data into arrays. 
-        do col=1, number_points
+      number_points = number_of_rows/3
 
-            ! * Read the column length for each row
-            read(unit,*) number_features
+      rewind (unit)
 
-            ! * Read the data vector 
-            data_vec(:,col)= 0.0_dp
-            read(unit,*) data_vec(1:number_features,col)
-            
-            ! * Read meta-data vector
-            read(unit,*) ion_label(col),ion_num(col),ion_formula(col), &
-            ion_symmetry(col),ion_volume(col), &
-            ion_energy(col),point_count(col)
+      allocate (data_vec(number_features, number_points), &
+                ion_energy(number_points), ion_volume(number_points), &
+                ion_label(number_points), ion_symmetry(number_points), &
+                ion_formula(number_points), ion_num(number_points), &
+                point_count(number_points))
 
-            ion_volume(col)=ion_volume(col)/real(ion_num(col),dp)
-            ion_energy(col)=ion_energy(col)/real(ion_num(col),dp)
+      ! * Read the data into arrays.
+      do col = 1, number_points
 
-        end do
-        
-        close(unit)
+         ! * Read the column length for each row
+         read (unit, *) number_features
 
-        if (allocated(data_vec)) then
-            print *, 'Data read from file:'
-        
-            if (size(data_vec, 1) > 0 ) then
-                print *, number_points, 'points read.'
-            else
-                print *, 'Data array is empty or dimensions are zero.'
-            end if
+         ! * Read the data vector
+         data_vec(:, col) = 0.0_dp
+         read (unit, *) data_vec(1:number_features, col)
 
-        else
-            print *, 'No data read or allocation failed.'
-        end if
+         ! * Read meta-data vector
+         read (unit, *) ion_label(col), ion_num(col), ion_formula(col), &
+            ion_symmetry(col), ion_volume(col), &
+            ion_energy(col), point_count(col)
 
-    end subroutine read_file
+         ion_volume(col) = ion_volume(col)/real(ion_num(col), dp)
+         ion_energy(col) = ion_energy(col)/real(ion_num(col), dp)
+
+      end do
+
+      close (unit)
+
+      if (allocated(data_vec)) then
+         print *, 'Data read from file:'
+
+         if (size(data_vec, 1) > 0) then
+            print *, number_points, 'points read.'
+         else
+            print *, 'Data array is empty or dimensions are zero.'
+         end if
+
+      else
+         print *, 'No data read or allocation failed.'
+      end if
+
+   end subroutine read_file
 
 end module data_reader
