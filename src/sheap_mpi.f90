@@ -1,7 +1,6 @@
 program sheap_mpi
 
-   include 'mpif.h'
-
+   USE mpi
    USE omp_lib
    USE data_reader
    USE data_writer
@@ -12,8 +11,7 @@ program sheap_mpi
    USE mpi_model
 
    character(len=256) :: filename
-   integer ierr, tag, rank, nranks
-   integer, parameter  :: master = 0
+   integer             :: ierr, rank, nranks
 
    call omp_set_num_threads(8)
 
@@ -21,7 +19,7 @@ program sheap_mpi
    call MPI_Comm_rank(MPI_COMM_WORLD, rank, ierr)
    call MPI_Comm_size(MPI_COMM_WORLD, nranks, ierr)
 
-   if (rank == master) then
+   if (rank == 0) then
 
       call get_command_argument(1, filename)
       if (trim(filename) == '') then
@@ -30,15 +28,10 @@ program sheap_mpi
       end if
 
       call read_file(trim(filename))
-      call initialise()
-      call high_dimension_probability()
-      call low_dimension_probability()
 
       call normalisation(data_vec, number_points, number_features)
 
       print *, 'Data normalised.'
-      print *, 'Insert the perplexity value: '
-      read *, perplexity
 
       call high_dimension_distribution()
       call low_dimension_distribution()
@@ -46,10 +39,9 @@ program sheap_mpi
 
    end if
 
-   call tpsd_mpi(1e-8_dp, 10000, rank, nranks)
+   call tpsd_mpi(1e-8_sp, 10000, rank, nranks)
 
-   if (rank == master) then
-      write (*, *) 'final cost = ', cost
+   if (rank == 0) then
       call write_file(trim('LJ13-sheap.xyz'))
    end if
 

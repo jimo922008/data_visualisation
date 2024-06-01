@@ -12,36 +12,36 @@ contains
    subroutine test_loss_gradient()
       implicit none
 
-      real(dp) :: exageration, cost, expected_cost
-      real(dp), dimension(low_dimension, number_points) :: gradient_matrix, expected_gradient_matrix
-      real(dp), dimension(low_dimension, number_points) :: low_dimension_position
-      real(dp), dimension(number_points, number_points) :: pij
+      real(sp) :: exaggeration, cost, expected_cost
+      real(sp), dimension(low_dimension, number_points) :: gradient_matrix, expected_gradient_matrix
+      real(sp), dimension(low_dimension, number_points) :: low_dimension_position
+      real(sp), dimension(number_points, number_points) :: pij
       integer, dimension(number_points) :: point_count
-      real(dp), dimension(number_points) :: point_radius
-      real(dp) :: core_strength
+      real(sp), dimension(number_points) :: point_radius
+      real(sp) :: core_strength
 
-      exageration = 1.0_dp
-      low_dimension_position = [0.0_dp, 0.0_dp, 1.0_dp, 1.0_dp, 2.0_dp, 2.0_dp]
-      pij = [0.0_dp, 0.1_dp, 0.2_dp, 0.1_dp, 0.0_dp, 0.3_dp]
+      exaggeration = 1.0_sp
+      low_dimension_position = [0.0_sp, 0.0_sp, 1.0_sp, 1.0_sp, 2.0_sp, 2.0_sp]
+      pij = [0.0_sp, 0.1_sp, 0.2_sp, 0.1_sp, 0.0_sp, 0.3_sp]
       point_count = [1, 1, 1, 1, 1, 1]
-      point_radius = [0.5_dp, 0.5_dp, 0.5_dp]
-      core_strength = 1.0_dp
+      point_radius = [0.5_sp, 0.5_sp, 0.5_sp]
+      core_strength = 1.0_sp
 
       ! Expected results (to be calculated or known from correct implementation)
-      expected_cost = -2.0_dp  ! Example value, you need to calculate or know this
-      expected_gradient_matrix = reshape([1.0_dp, 2.0_dp, -1.0_dp, -2.0_dp, 0.0_dp, 0.0_dp], shape(gradient_matrix))
+      expected_cost = -2.0_sp  ! Example value, you need to calculate or know this
+      expected_gradient_matrix = reshape([1.0_sp, 2.0_sp, -1.0_sp, -2.0_sp, 0.0_sp, 0.0_sp], shape(gradient_matrix))
 
       ! Call the subroutine
-      call loss_gradient(gradient_matrix, cost, exageration)
+      call loss_gradient(gradient_matrix, cost, exaggeration)
 
       ! Check the results
-      if (abs(cost - expected_cost) < 1.0e-6_dp) then
+      if (abs(cost - expected_cost) < 1.0e-6_sp) then
          print *, 'Cost test passed.'
       else
          print *, 'Cost test failed. Expected:', expected_cost, 'Got:', cost
       end if
 
-      if (all(abs(gradient_matrix - expected_gradient_matrix) < 1.0e-6_dp)) then
+      if (all(abs(gradient_matrix - expected_gradient_matrix) < 1.0e-6_sp)) then
          print *, 'Gradient matrix test passed.'
       else
          print *, 'Gradient matrix test failed.'

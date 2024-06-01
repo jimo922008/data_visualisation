@@ -47,9 +47,12 @@ program main
 
    call low_dimension_distribution()
 
+   write (*, *) 'pij', pij(1, 1), pij(1, 2), pij(1, 3), pij(1, 4), pij(1, 5)
+   write (*, *) 'qij', qij(1, 1), qij(1, 2), qij(1, 3), qij(1, 4), qij(1, 5)
+   write (*, *) 'sigma', sigma(1), sigma(2), sigma(3), sigma(4), sigma(5)
    write (*, *) 'Optimising the low dimension distribution'
 
-   call tpsd(1e-8_dp, 10000)
+   call tpsd(1e-8_sp, 10000)
    call write_file(trim('LJ13-sheap.xyz'))
 
 end program main

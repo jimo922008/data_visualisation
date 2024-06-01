@@ -6,8 +6,8 @@ MODULE data_reader
 
    public :: read_file
 
-   real(kind=dp), dimension(:, :), allocatable  :: data_vec
-   real(kind=dp), dimension(:), allocatable     :: ion_energy, ion_volume
+   real(kind=sp), dimension(:, :), allocatable  :: data_vec
+   real(kind=sp), dimension(:), allocatable     :: ion_energy, ion_volume
    integer, dimension(:), allocatable           :: ion_num, point_count
    character(len=256), dimension(:), allocatable:: ion_label, ion_symmetry, ion_formula
 
@@ -67,7 +67,7 @@ contains
          read (unit, *) number_features
 
          ! * Read the data vector
-         data_vec(:, col) = 0.0_dp
+         data_vec(:, col) = 0.0_sp
          read (unit, *) data_vec(1:number_features, col)
 
          ! * Read meta-data vector
@@ -75,8 +75,8 @@ contains
             ion_symmetry(col), ion_volume(col), &
             ion_energy(col), point_count(col)
 
-         ion_volume(col) = ion_volume(col)/real(ion_num(col), dp)
-         ion_energy(col) = ion_energy(col)/real(ion_num(col), dp)
+         ion_volume(col) = ion_volume(col)/real(ion_num(col), sp)
+         ion_energy(col) = ion_energy(col)/real(ion_num(col), sp)
 
       end do
 

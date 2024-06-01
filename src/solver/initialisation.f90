@@ -9,17 +9,17 @@ MODULE initialisation
    PUBLIC :: remove_duplicates
 
    private
-   REAL(kind=dp), dimension(:), allocatable  :: mass_centre, std_dev
-   real(dp), allocatable, dimension(:, :), PUBLIC  :: data_clean(:, :)
-   real(dp), allocatable, dimension(:, :), PUBLIC  :: high_dist_matrix_clean(:, :)
-   real(dp), allocatable, dimension(:), PUBLIC    :: point_count_clean(:)
+   REAL(kind=sp), dimension(:), allocatable  :: mass_centre, std_dev
+   real(sp), allocatable, dimension(:, :), PUBLIC  :: data_clean(:, :)
+   real(sp), allocatable, dimension(:, :), PUBLIC  :: high_dist_matrix_clean(:, :)
+   real(sp), allocatable, dimension(:), PUBLIC    :: point_count_clean(:)
 
    INTEGER, PUBLIC :: reduced_number_points
 
 contains
    subroutine normalisation(data_vec, number_points, number_features)
 
-      REAL(kind=dp), intent(inout) :: data_vec(:, :)
+      REAL(kind=sp), intent(inout) :: data_vec(:, :)
       INTEGER, intent(in) :: number_points, number_features
 
       WRITE (*, *) 'centering source data'
@@ -28,11 +28,11 @@ contains
 
       allocate (std_dev(number_features))
 
-      mass_centre = sum(data_vec, dim=2)/real(number_points, dp)
+      mass_centre = sum(data_vec, dim=2)/real(number_points, sp)
 
       data_vec = data_vec - spread(mass_centre, 2, number_points)
 
-      std_dev = sqrt(sum(data_vec**2, dim=2)/real(number_points - 1, dp))
+      std_dev = sqrt(sum(data_vec**2, dim=2)/real(number_points - 1, sp))
 
       write (*, *) 'normalising source data'
 
@@ -40,15 +40,15 @@ contains
 
    subroutine remove_duplicates(data_vec, high_dist_matrix, number_points, similar_threshold_, energy_threshold)
 
-      REAL(kind=dp), intent(in) :: data_vec(:, :)
-      REAL(kind=dp), intent(in) :: similar_threshold_, energy_threshold
-      REAL(kind=dp), intent(in) :: high_dist_matrix(:, :)
-      REAL(kind=dp)             :: similar_threshold
+      REAL(kind=sp), intent(in) :: data_vec(:, :)
+      REAL(kind=sp), intent(in) :: similar_threshold_, energy_threshold
+      REAL(kind=sp), intent(in) :: high_dist_matrix(:, :)
+      REAL(kind=sp)             :: similar_threshold
       INTEGER, dimension(:), allocatable     :: valid_points
       INTEGER, intent(inout)    :: number_points
       integer :: i, j, l, m
 
-      similar_threshold = similar_threshold_*sum(std_dev)/100_dp
+      similar_threshold = similar_threshold_*sum(std_dev)/100_sp
 
       allocate (valid_points(count(point_count /= 0)))
 
