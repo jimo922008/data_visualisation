@@ -26,7 +26,7 @@ contains
 
       call high_dimension_distance()
 
-      call remove_duplicates(data_vec, high_dist_matrix, number_points, 0.5_sp, .10000E+09_sp)
+      call remove_duplicates(data_vec, high_dist_matrix, number_points, similar_threshold, energy_threshold)
 
       write (*, *) 'finding sigma......'
 

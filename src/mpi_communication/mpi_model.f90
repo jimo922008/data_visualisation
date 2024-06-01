@@ -137,7 +137,7 @@ contains
             !$omp parallel do private(pos_matrix, rij2_vector, qij_vector, vec_matrix, pij_vector, factor) reduction(+:local_gradient_matrix, local_cost) schedule(dynamic)
             do i = start, end
 
-                    pos_matrix = spread(low_dimension_position(:, i), 2, reduced_number_points - i) - low_dimension_position(:, i + 1:reduced_number_points)
+               pos_matrix = spread(low_dimension_position(:, i), 2, reduced_number_points - i) - low_dimension_position(:, i + 1:reduced_number_points)
                rij2_vector = sum(pos_matrix*pos_matrix, dim=1)
                qij_vector = inv_z/(1.0_sp + rij2_vector)
                pij_vector = pij(i + 1:reduced_number_points, i)
@@ -145,7 +145,7 @@ contains
                vec_matrix = spread(factor, 1, low_dimension)*pos_matrix
                local_gradient_matrix(:, i) = local_gradient_matrix(:, i) + sum(vec_matrix, dim=2)
           local_gradient_matrix(:, i + 1:reduced_number_points) = local_gradient_matrix(:, i + 1:reduced_number_points) - vec_matrix
-                    local_cost = local_cost - sum(pij(i + 1:reduced_number_points, i) * log(qij_vector) * 2.0_sp - (1 - pij(i + 1:reduced_number_points, i)) * log(1 - qij_vector) * 2.0_sp)
+               local_cost = local_cost - sum(pij(i + 1:reduced_number_points, i) * log(qij_vector) * 2.0_sp - (1 - pij(i + 1:reduced_number_points, i)) * log(1 - qij_vector) * 2.0_sp)
 
             end do
             !$omp end parallel do

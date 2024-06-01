@@ -13,7 +13,7 @@ program main
 
    ! Initialize the filename
 
-   !call omp_set_num_threads(8)
+   call omp_set_num_threads(8)
 
    call get_command_argument(1, filename)
    if (trim(filename) == '') then
@@ -47,6 +47,7 @@ program main
 
    call low_dimension_distribution()
 
+   write (*,*) 'high_dist_matrix', high_dist_matrix(1, 1), high_dist_matrix(1, 2), high_dist_matrix(1, 3), high_dist_matrix(1, 4), high_dist_matrix(1, 5)
    write (*, *) 'pij', pij(1, 1), pij(1, 2), pij(1, 3), pij(1, 4), pij(1, 5)
    write (*, *) 'qij', qij(1, 1), qij(1, 2), qij(1, 3), qij(1, 4), qij(1, 5)
    write (*, *) 'sigma', sigma(1), sigma(2), sigma(3), sigma(4), sigma(5)

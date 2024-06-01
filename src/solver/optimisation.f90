@@ -71,6 +71,8 @@ contains
 
          call handle_growth_phase(j, growth_step_limit)
 
+         write (*, *) 'Cost: ', cost, ' Gradient norm: ', running_gradient_norm, ' Step size: ', step_size
+
       end do
 
       final_cost = cost
@@ -100,46 +102,61 @@ contains
 
       real(kind=sp), intent(in)  :: exaggeration
       real(kind=sp), intent(out) :: cost
-
       real(kind=sp), dimension(low_dimension, reduced_number_points), intent(inout)      :: gradient_matrix
-      real(kind=sp), dimension(:, :), allocatable                         :: vec_matrix, pos_matrix
-      real(kind=sp), dimension(:), allocatable                            :: rij2_vector, pij_vector, qij_vector, factor
-      integer                                                             :: i, j, k
+      real(kind=sp), dimension(:, :), allocatable                 :: vec_matrix, pos_matrix
+      real(kind=sp), dimension(:), allocatable                                :: rij2_vector, pij_vector, qij_vector, factor
+      integer :: i, j, k
 
       cost = cost_zero
       gradient_matrix = 0.0_sp
 
-      allocate (pos_matrix(low_dimension, reduced_number_points - 1))
-      allocate (vec_matrix(low_dimension, reduced_number_points - 1))
-      allocate (rij2_vector(reduced_number_points - 1))
-      allocate (pij_vector(reduced_number_points - 1))
-      allocate (qij_vector(reduced_number_points - 1))
-      allocate (factor(reduced_number_points - 1))
-
       !$omp parallel do private(pos_matrix, rij2_vector, qij_vector, vec_matrix, pij_vector, factor) reduction(+:gradient_matrix,cost) schedule(dynamic)
       do i = 1, reduced_number_points
-         j = reduced_number_points - i
-         pos_matrix(:, :j) = spread(low_dimension_position(:, i), 2, j) - low_dimension_position(:, i + 1:reduced_number_points)
 
-         rij2_vector(:j) = sum(pos_matrix(:, :j)*pos_matrix(:, :j), dim=1)
-         qij_vector(:j) = inv_z/(1.0_sp + rij2_vector(:j))
-         pij_vector(:j) = pij(i + 1:reduced_number_points, i)
-       factor(:j) = 4.0_sp*z*(exaggeration*pij_vector(:j) - (1 - pij_vector(:j))/(1 - qij_vector(:j))*qij_vector(:j))*qij_vector(:j)
+         allocate (pos_matrix(low_dimension, reduced_number_points - i))
+         allocate (vec_matrix(low_dimension, reduced_number_points - i))
+         allocate (rij2_vector(reduced_number_points - i))
+         allocate (pij_vector(reduced_number_points - i))
+         allocate (qij_vector(reduced_number_points - i))
+         allocate (factor(reduced_number_points - i))
 
-         vec_matrix(:, :j) = spread(factor(:j), 1, low_dimension)*pos_matrix(:, :j)
-         gradient_matrix(:, i) = gradient_matrix(:, i) + sum(vec_matrix(:, :j), dim=2)
-         gradient_matrix(:, i + 1:reduced_number_points) = gradient_matrix(:, i + 1:reduced_number_points) - vec_matrix(:, :j)
+   pos_matrix = spread(low_dimension_position(:,i), 2, reduced_number_points-i) -low_dimension_position(:,i+1:reduced_number_points)
+         rij2_vector = sum(pos_matrix*pos_matrix, dim=1)
+         qij_vector = inv_z/(1.0_sp + rij2_vector)
+         pij_vector = pij(i + 1:reduced_number_points, i)
+         factor = 4.0_sp*z*(exaggeration*pij_vector - (1 - pij_vector)/(1 - qij_vector)*qij_vector)*qij_vector
+         vec_matrix = spread(factor, 1, low_dimension)*pos_matrix
+         gradient_matrix(:, i) = gradient_matrix(:, i) + sum(vec_matrix, dim=2)
+         gradient_matrix(:, i + 1:reduced_number_points) = gradient_matrix(:, i + 1:reduced_number_points) - vec_matrix
+         cost = cost - sum(pij_vector*log(qij_vector)*2.0_sp - (1 - pij_vector)*log(1 - qij_vector)*2.0_sp)
 
-         cost = cost - sum(pij_vector(:j)*log(qij_vector(:j))*2.0_sp - (1 - pij_vector(:j))*log(1 - qij_vector(:j))*2.0_sp)
+         deallocate (pos_matrix)
+         deallocate (vec_matrix)
+         deallocate (rij2_vector)
+         deallocate (pij_vector)
+         deallocate (qij_vector)
+         deallocate (factor)
+
+         !pos_matrix(:,:j) = spread(low_dimension_position(:, i), 2, j) - low_dimension_position(:, i + 1:reduced_number_points)
+
+         !rij2_vector(:j) = sum(pos_matrix(:, :j)*pos_matrix(:, :j), dim=1)
+
+         !qij_vector(:j) = inv_z/(1.0_sp + rij2_vector(:j))
+
+         !pij_vector(:j) = pij(i + 1:reduced_number_points, i)
+
+         !factor(:j) = 4.0_sp*z*(exaggeration*pij_vector(:j) - (1 - pij_vector(:j))/(1 - qij_vector(:j))*qij_vector(:j))*qij_vector(:j)
+
+         !vec_matrix(:, :j) = spread(factor(:j), 1, low_dimension)*pos_matrix(:, :j)
+
+         !gradient_matrix(:, i) = gradient_matrix(:, i) + sum(vec_matrix(:, :j), dim=2)
+
+         !gradient_matrix(:, i + 1:reduced_number_points) = gradient_matrix(:, i + 1:reduced_number_points) - vec_matrix(:, :j)
+
+         !cost = cost - sum(pij_vector(:j)*log(qij_vector(:j))*2.0_sp - (1 - pij_vector(:j))*log(1 - qij_vector(:j))*2.0_sp)
+
       end do
       !$omp end parallel do
-
-      deallocate (pos_matrix)
-      deallocate (vec_matrix)
-      deallocate (rij2_vector)
-      deallocate (pij_vector)
-      deallocate (qij_vector)
-      deallocate (factor)
 
       call gradient_matrix_addnoise(gradient_matrix, 1e-2_sp)
 
@@ -153,14 +170,14 @@ contains
       real(kind=sp), dimension(:), allocatable                              :: rij2_vector, pij_vector, qij_vector, factor
       real(kind=sp), intent(out)                                            :: cost
       real(kind=sp), dimension(:), allocatable                              :: point_radius_packed, dist_packed
-      real(kind=sp), dimension(:, :), allocatable                            :: vec_matrix_packed
+      real(kind=sp), dimension(:, :), allocatable                           :: vec_matrix_packed
       logical, dimension(:), allocatable                                    :: overlap_mask
       integer:: i, j
 
       cost = cost_zero
       gradient_matrix = 0.0_sp
 
-      !$omp parallel do private(pos_matrix, rij2_vector, qij_vector, vec_matrix, pij_vector, factor, dist_packed, overlap_mask, point_radius_packed, vec_matrix_packed) reduction(+:gradient_matrix,cost) schedule(dynamic)
+      !$omp parallel do private(pos_matrix, rij2_vector, qij_vector, vec_matrix, pij_vector, factor, dist_packed, overlap_mask, point_radius_packed, vec_matrix_packed, j) reduction(+:gradient_matrix,cost) schedule(dynamic)
       do i = 1, reduced_number_points
          allocate (pos_matrix(low_dimension, reduced_number_points - i))
          allocate (vec_matrix(low_dimension, reduced_number_points - i))
@@ -194,8 +211,8 @@ cost=cost-sum(pij(i+1:reduced_number_points,i)*log(qij_vector)*2.0_sp-(1-pij(i+1
 
             dist_packed = (point_radius(i) + point_radius_packed - dist_packed)/2.0_sp
 
-                gradient_matrix(:,i)= gradient_matrix(:,i)+ sum(vec_matrix_packed * spread(dist_packed, 1, low_dimension) * core_strength/2.0_sp, dim=2)
-                gradient_matrix(:,pack([(i+j, j=1, reduced_number_points-i)],overlap_mask))= gradient_matrix(:,pack([(i+j, j=1, reduced_number_points-i)],overlap_mask))-vec_matrix_packed* spread(dist_packed, 1, low_dimension)*core_strength/2.0_sp
+            gradient_matrix(:,i)= gradient_matrix(:,i)+ sum(vec_matrix_packed * spread(dist_packed, 1, low_dimension) * core_strength/2.0_sp, dim=2)
+            gradient_matrix(:,pack([(i+j, j=1, reduced_number_points-i)],overlap_mask))= gradient_matrix(:,pack([(i+j, j=1, reduced_number_points-i)],overlap_mask))-vec_matrix_packed* spread(dist_packed, 1, low_dimension)*core_strength/2.0_sp
 
             cost = cost + sum(dist_packed*dist_packed/2.0_sp*core_strength)
 

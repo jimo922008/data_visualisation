@@ -38,39 +38,39 @@ contains
 
    end subroutine normalisation
 
-   subroutine remove_duplicates(data_vec, high_dist_matrix, number_points, similar_threshold_, energy_threshold)
+   subroutine remove_duplicates(data_vec, high_dist_matrix, number_points, similar_threshold, energy_threshold)
 
       REAL(kind=sp), intent(in) :: data_vec(:, :)
-      REAL(kind=sp), intent(in) :: similar_threshold_, energy_threshold
+      REAL(kind=sp), intent(inout) :: similar_threshold, energy_threshold
       REAL(kind=sp), intent(in) :: high_dist_matrix(:, :)
-      REAL(kind=sp)             :: similar_threshold
-      INTEGER, dimension(:), allocatable     :: valid_points
       INTEGER, intent(inout)    :: number_points
+      INTEGER, dimension(:), allocatable     :: valid_points
       integer :: i, j, l, m
 
-      similar_threshold = similar_threshold_*sum(std_dev)/100_sp
+      similar_threshold = (similar_threshold*sum(std_dev)/100_sp)**2
 
       allocate (valid_points(count(point_count /= 0)))
 
       valid_points = pack([(i, i=1, number_points)], point_count /= 0)
 
-      !$omp parallel do shared(ion_energy, high_dist_matrix) private(i, j)
       do l = 1, size(valid_points)
          i = valid_points(l)
          do m = l + 1, size(valid_points)
             j = valid_points(m)
-            if ((high_dist_matrix(j, i) < similar_threshold**2) .and. (abs(ion_energy(i) - ion_energy(j)) < energy_threshold)) then
+            if ((high_dist_matrix(j, i) < similar_threshold) .and. (abs(ion_energy(i) - ion_energy(j)) < energy_threshold)) then
 
                point_count(i) = point_count(i) + merge(point_count(j), 0, ion_energy(i) <= ion_energy(j))
+
                point_count(i) = point_count(i)*merge(1, 0, ion_energy(i) <= ion_energy(j))
+
                point_count(j) = point_count(j) + merge(point_count(i), 0, ion_energy(i) > ion_energy(j))
+
                point_count(j) = point_count(j)*merge(1, 0, ion_energy(i) > ion_energy(j))
 
                if (ion_energy(i) > ion_energy(j)) exit
             end if
          end do
       end do
-      !$omp end parallel do
 
       reduced_number_points = count(point_count(1:number_points) > 0)
 
@@ -82,7 +82,7 @@ contains
 
       data_clean = data_vec(:, pack([(i, i=1, number_points)], point_count > 0))
 
-        high_dist_matrix_clean = high_dist_matrix(pack([(i, i=1, number_points)], point_count > 0), pack([(i, i=1, number_points)], point_count > 0))
+      high_dist_matrix_clean = high_dist_matrix(pack([(i, i=1, number_points)], point_count > 0), pack([(i, i=1, number_points)], point_count > 0))
 
       point_count_clean = point_count(pack([(i, i=1, number_points)], point_count > 0))
 

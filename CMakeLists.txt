@@ -9,7 +9,6 @@ set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -std=f2008")
 set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -ffree-line-length-none")
 set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS}  -g -O0")
 set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fopenmp")
-enable_testing()
 
 # Compiler options for different build types
 set(CMAKE_Fortran_FLAGS_DEBUG "-O0 -g -fimplicit-none -Wall -Wextra")
@@ -26,10 +25,10 @@ if (MPI_FOUND)
     set(EXTRA_LIBS ${EXTRA_LIBS} ${MPI_Fortran_LIBRARIES})
 endif()
 
+include(CTest)
+enable_testing()
+
 add_subdirectory(src)
 add_subdirectory(test)
-
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/bin)
-
 
 

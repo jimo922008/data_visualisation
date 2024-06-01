@@ -5,6 +5,10 @@ module parameters
    integer, parameter           :: dp = 8
    integer, parameter           :: sp = 4
 
+   ! Initialisation parameters
+   real(kind=sp)                :: similar_threshold = 0.5_sp
+   real(kind=sp)                :: energy_threshold = 0.10000E+09_sp
+
    ! high dimension parameters
    real(kind=sp), parameter     :: perplexity = 30.0_sp
    real(kind=sp), parameter     :: gr = (sqrt(5.0_sp) + 1.0_sp)/2.0_sp
