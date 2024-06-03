@@ -18,6 +18,7 @@ contains
       call test_remove_duplicates(data_vec, high_dist_matrix, number_points, similar_threshold, energy_threshold)
       call test_find_sigma(perplexity)
       call test_high_dimension_distribution()
+      call test_hard_sphere_initialisation()
 
    end subroutine run_tests
 
@@ -95,36 +96,24 @@ contains
       end do
 
       if ((pij(1, 1)) /= 0.00000000 .or. pij(1, 2) /= 4.08979650E-09 .or. pij(1, 3) /= 1.85994082E-08) then
-         print *, 'Test failed: pij incorrect'
+         print *, '-FAILED: pij incorrect'
       else
-         print *, '- high_dimension_distribution test PASSED.'
+         print *, '-PASSED: high_dimension_distribution test.'
       end if
    end subroutine test_high_dimension_distribution
 
-   subroutine test_initialize_variables
-      ! Test the subroutine initialize_variables
-      integer :: i, j
-      real(kind=sp) :: gradient_norm, running_gradient_norm
+   subroutine test_hard_sphere_initialisation()
 
-      ! Initialize necessary variables
-      reduced_number_points = 10  ! Example value for testing
-      allocate (pij(reduced_number_points, reduced_number_points))
-      pij = 0.0_sp  ! Dummy values for testing
+      call hard_sphere_initialisation()
 
-      ! Call the subroutine to initialize variables
-      call initialize_variables(i, j, gradient_norm, running_gradient_norm)
+      if (sum(point_radius) /= 21.0950317 .or. &
+          point_radius(1) /= 2.99999993E-02 .or. &
+          point_radius(2) /= 0.194935888) then
+         print *, '-FAILED: hard_sphere_initialisation test.'
+      else
+         print *, '-PASSED: hard_sphere_initialisation test.'
+      end if
 
-      ! Check the initialized values
-      if (i /= 0) print *, 'Test failed: i /= 0'
-      if (j /= 0) print *, 'Test failed: j /= 0'
-      if (gradient_norm /= huge(1.0_sp)) print *, 'Test failed: gradient_norm /= huge(1.0_sp)'
-      if (running_gradient_norm /= 0.0_sp) print *, 'Test failed: running_gradient_norm /= 0.0_sp'
-      if (cost_zero /= 0.0_sp) print *, 'Test failed: cost_zero /= 0.0_sp'
-      if (z /= real(reduced_number_points, sp)*(real(reduced_number_points, sp) - 1.0_sp)) print *, 'Test failed: z is incorrect'
-      if (inv_z /= 1.0_sp/z) print *, 'Test failed: inv_z is incorrect'
-
-      print *, 'All tests passed.'
-
-   end subroutine test_initialize_variables
+   end subroutine test_hard_sphere_initialisation
 
 end program test_optimisation

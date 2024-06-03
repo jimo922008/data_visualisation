@@ -26,5 +26,6 @@ module parameters
    real(kind=sp), parameter     :: exaggeration_init = 5.0_sp
    real(kind=sp), parameter     :: core_strength = 1.0_sp
    real(kind=sp), parameter     :: growth_coeff = 2.0_sp
+   integer, parameter           :: block_size = 16
 
 end module parameters

@@ -12,8 +12,8 @@ target_link_libraries(
     solver_lib
     timing_lib
     
-    PUBLIC MPI::MPI_Fortran
-    PUBLIC OpenMP::OpenMP_Fortran
+    #PUBLIC MPI::MPI_Fortran
+    #PUBLIC OpenMP::OpenMP_Fortran
     ${BLAS_LIBRARIES}
 )
 

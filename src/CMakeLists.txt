@@ -4,9 +4,6 @@ add_subdirectory(solver)
 add_subdirectory(timing)
 add_subdirectory(mpi_communication)
 
-find_package(MPI REQUIRED)
-find_package(OpenMP REQUIRED)
-
 add_executable(sheap main_hpc.f90)
 
 target_link_libraries(
@@ -19,8 +16,9 @@ target_link_libraries(
     timing_lib
     
     PUBLIC MPI::MPI_Fortran
-    PUBLIC OpenMP::OpenMP_Fortran
+    OpenMP::OpenMP_Fortran
     ${BLAS_LIBRARIES}
+    ${LAPACK_LIBRARIES}
 )
 
 
@@ -48,6 +46,7 @@ target_link_libraries(
     PUBLIC MPI::MPI_Fortran
     PUBLIC OpenMP::OpenMP_Fortran
     ${BLAS_LIBRARIES}
+    ${LAPACK_LIBRARIES}
 )
 
 

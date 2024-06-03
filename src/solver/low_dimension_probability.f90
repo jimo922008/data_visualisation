@@ -11,16 +11,19 @@ MODULE low_dimension_probability
    PUBLIC :: calculating_qij
    PUBLIC :: random_add_noise
 
-   real(kind=sp), allocatable, dimension(:, :)  :: low_dimension_position(:, :)
-   real(kind=sp), allocatable, dimension(:, :)  :: low_dimension_distance(:, :)
-   real(kind=sp), allocatable, dimension(:, :)  :: qij(:, :)
-   real(kind=sp), allocatable, dimension(:)     :: point_radius(:)
+   real(kind=sp), dimension(:, :), allocatable :: low_dimension_position, low_dimension_distance, qij
+   real(kind=sp), dimension(:), allocatable   :: point_radius
 
 contains
 
    subroutine low_dimension_distribution()
 
-      call low_dimension_init()
+      allocate (low_dimension_position(low_dimension, reduced_number_points))
+      allocate (low_dimension_distance(reduced_number_points, reduced_number_points))
+      allocate (qij(reduced_number_points, reduced_number_points))
+      allocate (point_radius(reduced_number_points))
+
+      call low_dimension_init_pca()
       write (*, *) 'low dimension init done.'
       call low_dimension_normalisation()
       write (*, *) 'low dimension normalisation done.'
@@ -37,9 +40,6 @@ contains
       real(kind=sp)              :: coeff, sigma_average
       integer :: i, j
 
-      allocate (low_dimension_position(low_dimension, reduced_number_points))
-      allocate (low_dimension_distance(reduced_number_points, reduced_number_points))
-      allocate (qij(reduced_number_points, reduced_number_points))
       allocate (random_matrix(low_dimension, number_features))
 
       random_matrix = 0.0_sp
@@ -65,6 +65,47 @@ contains
       deallocate (random_matrix)
 
    end subroutine low_dimension_init
+
+   subroutine low_dimension_init_pca()
+
+      IMPLICIT NONE
+      integer :: e_num, info, high_dimension, lwork
+      integer, dimension(:), allocatable :: iwork, ifail
+      real(kind=dp)                              :: vl, vu, sigma_average
+      real(kind=dp), allocatable, dimension(:)   :: work, e_val, work_0
+      real(kind=dp), dimension(:, :), allocatable :: covariance_matrix, e_vec
+
+      high_dimension = size(data_clean, 1)
+      allocate (covariance_matrix(high_dimension, high_dimension))
+      allocate (e_vec(high_dimension, high_dimension))
+      allocate (e_val(high_dimension))
+      allocate (iwork(5*high_dimension))
+      allocate (ifail(high_dimension))
+
+      sigma_average = sum(sigma)/real(reduced_number_points, sp)
+
+      covariance_matrix = matmul(data_clean, transpose(data_clean))
+
+      ifail = 0
+      allocate (work_0(1))
+      call dsyevx('V','I','U',high_dimension,covariance_matrix,high_dimension,vl,vu,high_dimension-low_dimension+1,high_dimension,epsilon(1.0),&
+                  e_num, e_val, e_vec, high_dimension, work_0, -1, iwork, ifail, info)
+
+      lwork = int(work_0(1))
+      allocate (work(lwork))
+
+      write (*, *) 'lwork = ', lwork
+
+      call dsyevx('V','I','U',high_dimension,covariance_matrix,high_dimension,vl,vu,high_dimension-low_dimension+1,high_dimension,epsilon(1.0),&
+                  e_num, e_val, e_vec, high_dimension, work, lwork, iwork, ifail, info)
+
+      write (*, *) 'eigenvalues done.'
+
+      low_dimension_position = matmul(transpose(e_vec(:, low_dimension:1:-1)), data_clean)/projection_compression/sigma_average
+
+      write (*, *) 'low dimension position done.'
+
+   end subroutine low_dimension_init_pca
 
    subroutine low_dimension_normalisation()
 
@@ -131,8 +172,6 @@ contains
 
       integer :: i
 
-      allocate (point_radius(reduced_number_points))
-
       point_radius = 0.0_sp
 
       !$omp parallel do schedule(static)
@@ -140,8 +179,6 @@ contains
          point_radius(i) = sphere_radius*real(point_count_clean(i), sp)**(1.0_sp/real(low_dimension, sp))
       end do
       !$omp end parallel do
-
-      point_radius = point_radius/100.0_sp
 
    end subroutine hard_sphere_initialisation
 

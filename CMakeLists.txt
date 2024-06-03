@@ -17,13 +17,8 @@ set(CMAKE_Fortran_FLAGS_RELEASE "-Ofast -fexternal-blas -march=native -ffast-mat
 find_package(OpenMP REQUIRED)
 find_package(MPI REQUIRED)
 find_package(BLAS REQUIRED)
+find_package(LAPACK REQUIRED)
 
-if (MPI_FOUND)
-    include_directories(SYSTEM ${MPI_INCLUDE_PATH})
-    set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} ${MPI_Fortran_COMPILE_FLAGS}")
-    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${MPI_Fortran_LINK_FLAGS}")
-    set(EXTRA_LIBS ${EXTRA_LIBS} ${MPI_Fortran_LIBRARIES})
-endif()
 
 include(CTest)
 enable_testing()

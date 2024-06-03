@@ -1,5 +1,3 @@
-find_package(MPI REQUIRED)
-
 add_library(datasync_lib 
             STATIC
             mpi_model.f90
