@@ -13,7 +13,7 @@ program main
 
    ! Initialize the filename
 
-   ! call omp_set_num_threads(8)
+   call omp_set_num_threads(8)
 
    call get_command_argument(1, filename)
    if (trim(filename) == '') then

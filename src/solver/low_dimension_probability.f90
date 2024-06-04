@@ -23,7 +23,7 @@ contains
       allocate (qij(reduced_number_points, reduced_number_points))
       allocate (point_radius(reduced_number_points))
 
-      call low_dimension_init_pca()
+      call low_dimension_init()
       write (*, *) 'low dimension init done.'
       call low_dimension_normalisation()
       write (*, *) 'low dimension normalisation done.'
