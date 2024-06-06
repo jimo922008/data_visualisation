@@ -33,6 +33,14 @@ repos:
         exclude: '.*'
         always_run: true
 
+      - id: ctest 
+        name: CTest
+        language: system
+        entry: ctest
+        args: [--test-dir, build]
+        exclude: '.*'
+        always_run: true
+
 
 
 

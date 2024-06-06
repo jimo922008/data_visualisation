@@ -10,7 +10,7 @@ project(sheap
 set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -std=f2008")
 set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -ffree-line-length-none")
 set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -Ofast -fexternal-blas -march=native -ffast-math -funroll-loops")
-set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fopenmp")
+#set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fopenmp")
 
 # Compiler options for different build types
 set(CMAKE_Fortran_FLAGS_DEBUG "-O0 -g -fimplicit-none -Wall -Wextra")
@@ -20,7 +20,6 @@ find_package(OpenMP REQUIRED)
 find_package(MPI REQUIRED)
 find_package(BLAS REQUIRED)
 find_package(LAPACK REQUIRED)
-
 
 include(CTest)
 enable_testing()

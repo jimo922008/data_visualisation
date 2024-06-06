@@ -1,6 +1,3 @@
-include(CTest)
-enable_testing()
-
 add_executable(test_optimisation test_optimisation.f90)
 
 target_link_libraries(
@@ -26,5 +23,6 @@ target_include_directories(test_optimisation
                 ${CMAKE_BINARY_DIR}/src/timing
                 
 )
+
 
 add_test(NAME test_optimisation  COMMAND test_optimisation)
