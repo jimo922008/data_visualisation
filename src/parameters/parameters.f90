@@ -27,5 +27,6 @@ module parameters
    real(kind=sp), parameter     :: core_strength = 1.0_sp
    real(kind=sp), parameter     :: growth_coeff = 2.0_sp
    integer, parameter           :: block_size = 16
+   real(kind=sp)                :: momentum_coeff = 0.9_sp
 
 end module parameters

@@ -47,6 +47,7 @@ contains
       call remove_duplicates(data_vec, high_dist_matrix, number_points, similar_threshold, energy_threshold)
       if (reduced_number_points /= 793) then
          print *, 'Test failed: reduced_number_points /= 793'
+         stop
       else
          print *, '- remove_duplicates test PASSED.'
       end if

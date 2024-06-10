@@ -1,6 +1,6 @@
 program sheap_mpi
 
-   !USE mpi
+   USE mpi
    USE omp_lib
    USE data_reader
    USE data_writer
@@ -8,16 +8,16 @@ program sheap_mpi
    USE high_dimension
    USE low_dimension_probability
    USE optimisation
-   !USE mpi_model
+   USE mpi_model
 
-   character(len=256) :: filename
+   character(len=256)  :: filename
    integer             :: ierr, rank, nranks
 
-   !call omp_set_num_threads(8)
+   call omp_set_num_threads(8)
 
-   !call MPI_Init(ierr)
-   !call MPI_Comm_rank(MPI_COMM_WORLD, rank, ierr)
-   !call MPI_Comm_size(MPI_COMM_WORLD, nranks, ierr)
+   call MPI_Init(ierr)
+   call MPI_Comm_rank(MPI_COMM_WORLD, rank, ierr)
+   call MPI_Comm_size(MPI_COMM_WORLD, nranks, ierr)
 
    if (rank == 0) then
 
@@ -39,12 +39,12 @@ program sheap_mpi
 
    end if
 
-   !call tpsd_mpi(1e-8_sp, 10000, rank, nranks)
+   call tpsd_mpi(1e-8_sp, 10000, rank, nranks)
 
    if (rank == 0) then
       call write_file(trim('LJ13-sheap.xyz'))
    end if
 
-   !call MPI_Finalize(ierr)
+   call MPI_Finalize(ierr)
 
 end program sheap_mpi
