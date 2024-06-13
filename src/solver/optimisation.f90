@@ -19,30 +19,25 @@ MODULE optimisation
 
 contains
 
-   subroutine tpsd(threshold, maxsteps)
+   subroutine tpsd(pij, point_radius, low_dimension_position, exaggeration_init, threshold, maxsteps)
 
       implicit none
 
-      integer, intent(in)       :: maxsteps
-      real(kind=sp), intent(in) :: threshold
-      real(kind=sp)             :: exaggeration
+      ! Input variables
+      integer, intent(in)          :: maxsteps
+      real(kind=sp), intent(in)    :: threshold
+      real(kind=sp), intent(in)    :: exaggeration_init
+      real(kind=sp), intent(in)    :: pij(reduced_number_points, reduced_number_points)
+      real(kind=sp), intent(inout) :: point_radius(reduced_number_points)
+      real(kind=sp), intent(inout) :: low_dimension_position(low_dimension, reduced_number_points)
 
-      real(kind=sp)             :: cost, step_size, gradient_norm, running_gradient_norm
-      integer                   :: i, j
-      logical                   :: growth_step_limit = .true.
-      real(kind=sp), dimension(low_dimension*reduced_number_points) :: low_pos_vec, gradient_vec, velocity, m, v, m_hat, v_hat
-
-      real(kind=sp) :: beta1, beta2, epsilon, alpha, beta1_t, beta2_t
-
-      ! Initialize Adam parameters
-      beta1 = 0.9_sp
-      beta2 = 0.999_sp
-      epsilon = 1e-8_sp
-      alpha = 1e-3_sp
-      beta1_t = 1.0_sp
-      beta2_t = 1.0_sp
-      m = 0.0_sp
-      v = 0.0_sp
+      ! Internal variables
+      integer                      :: i, j
+      real(kind=sp)                :: exaggeration
+      logical                      :: growth_step_limit = .true.
+      real(kind=sp)                :: step_size, gradient_norm, running_gradient_norm
+      real(kind=sp)                :: low_pos_vec(low_dimension*reduced_number_points)
+      real(kind=sp)                :: gradient_vec(low_dimension*reduced_number_points)
 
       call start_timer()
 
@@ -54,34 +49,21 @@ contains
 
          i = i + 1
 
-         beta1_t = beta1_t*beta1
-         beta2_t = beta2_t*beta2
-
          exaggeration = merge(1.0_sp, exaggeration_init, i > exag_cutoff)
 
-         call loss_gradient_position(low_pos_vec, gradient_vec, cost, exaggeration)
+         call loss_gradient_position(low_pos_vec, gradient_vec, exaggeration)
 
-         !step_size = calculate_stepsize(low_pos_vec, gradient_vec, init=((i == 1) .or. (i == exag_cutoff)))
+         call calculate_stepsize(low_pos_vec, gradient_vec, step_size, init=((i == 1) .or. (i == exag_cutoff)))
 
-         !velocity = momentum_coeff*velocity - step_size*gradient_vec
+         print *, 'Step size: ', step_size
 
-         !low_pos_vec = low_pos_vec + velocity
+         low_pos_vec = low_pos_vec - step_size*gradient_vec
 
-         !gradient_norm = dot_product(step_size*gradient_vec, gradient_vec)
-
-         ! Adam update
-         m = beta1*m + (1.0_sp - beta1)*gradient_vec
-         v = beta2*v + (1.0_sp - beta2)*(gradient_vec*gradient_vec)
-         m_hat = m/(1.0_sp - beta1_t)
-         v_hat = v/(1.0_sp - beta2_t)
-         low_pos_vec = low_pos_vec - alpha*m_hat/(sqrt(v_hat) + epsilon)
-
-         ! Calculate gradient_norm locally
-         gradient_norm = dot_product(m_hat/(sqrt(v_hat) + epsilon), gradient_vec)
+         gradient_norm = dot_product(step_size*gradient_vec, gradient_vec)
 
          running_gradient_norm = running_gradient_norm + (log10(gradient_norm) - running_gradient_norm)/min(i, 100)
 
-         write (*,*) 'Cost: ', cost, ' Gradient norm: ', gradient_norm, 'running gradient norm', running_gradient_norm, ' Step size: ', step_size
+         write (*, *) ' Gradient norm: ', gradient_norm, 'running gradient norm', running_gradient_norm, ' Step size: ', step_size
 
       end do
 
@@ -90,13 +72,11 @@ contains
       do while (((running_gradient_norm > log10(threshold)) .or. (growth_step_limit)) .and. (i + j < maxsteps))
          j = j + 1
 
-         call loss_gradient_core(low_pos_vec, gradient_vec, cost)
+         call loss_gradient_core(low_pos_vec, gradient_vec)
 
-         step_size = calculate_stepsize(low_pos_vec, gradient_vec, init=(j == 1))
+         call calculate_stepsize(low_pos_vec, gradient_vec, step_size, init=(j == 1))
 
-         velocity = momentum_coeff*velocity - step_size*gradient_vec
-
-         low_pos_vec = low_pos_vec + velocity
+         low_pos_vec = low_pos_vec - step_size*gradient_vec
 
          gradient_norm = dot_product(step_size*gradient_vec, gradient_vec)
 
@@ -104,16 +84,13 @@ contains
 
          call handle_growth_phase(j, point_radius, growth_step_limit)
 
-         write (*, *) 'Cost: ', cost, ' Gradient norm: ', gradient_norm, 'running gradient norm', running_gradient_norm, ' Step size: ', step_size
+         write (*, *) ' Gradient norm: ', gradient_norm, 'running gradient norm', running_gradient_norm, ' Step size: ', step_size
          write (*, *) 'point radius', sum(point_radius)
 
       end do
 
-      final_cost = cost
-
       low_dimension_position = reshape(low_pos_vec, (/low_dimension, reduced_number_points/))
 
-      write (*, *) 'Final cost: ', final_cost
       call stop_timer()
       write (*, *) 'Time: ', elapsed_time()
    end subroutine tpsd
@@ -133,11 +110,10 @@ contains
       inv_z = 1.0_sp/z
    end subroutine initialize_variables
 
-   subroutine loss_gradient_position(low_pos_vec, gradient_vec, cost, exaggeration)
+   subroutine loss_gradient_position(low_pos_vec, gradient_vec, exaggeration)
       implicit none
 
       real(kind=sp), intent(in)  :: exaggeration
-      real(kind=sp), intent(out) :: cost
       real(kind=sp), dimension(low_dimension*reduced_number_points), intent(inout)      :: gradient_vec, low_pos_vec
       real(kind=sp), dimension(low_dimension) :: vec, pos
       real(kind=sp) :: qij, rij2
@@ -161,9 +137,8 @@ contains
 
    end subroutine loss_gradient_position
 
-   subroutine loss_gradient_core(low_pos_vec, gradient_vec, cost)
-
-      real(kind=sp), intent(out) :: cost
+   subroutine loss_gradient_core(low_pos_vec, gradient_vec)
+      implicit none
       real(kind=sp), dimension(low_dimension*reduced_number_points), intent(inout)  :: low_pos_vec, gradient_vec
       real(kind=sp), dimension(low_dimension)               :: vec, pos
       real(kind=sp)                                         :: rij2, qij, dist
@@ -196,14 +171,17 @@ contains
 
    end subroutine loss_gradient_core
 
-   function calculate_stepsize(current_position, current_gradient, init) result(step_size)
+   subroutine calculate_stepsize(current_position, current_gradient, step_size, init)
 
+      ! Input variables
       logical, optional, intent(in)                                    :: init
       real(kind=sp), dimension(:), intent(in)                          :: current_position, current_gradient
+      real(kind=sp), intent(out)                                       :: step_size
+
+      ! Internal variables
       real(kind=sp), save, allocatable, dimension(:)                   :: previous_position, previous_gradient
       real(kind=sp), dimension(size(current_position))                 :: position_change, gradient_change
       real(kind=sp)                                                    :: gradient_change_magnitude, position_gradient_dot_product
-      real(kind=sp)                                                    :: step_size
       real(kind=sp), parameter                                         :: default_step_size = 1e-1_sp
 
       if (init) then
@@ -228,7 +206,7 @@ contains
       previous_position = current_position
       previous_gradient = current_gradient
 
-   end function calculate_stepsize
+   end subroutine calculate_stepsize
 
    function calculating_cost_zero(pij) result(cost_zero)
 

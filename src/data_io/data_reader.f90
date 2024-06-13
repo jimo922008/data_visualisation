@@ -10,7 +10,6 @@ MODULE data_reader
    real(kind=sp), dimension(:), allocatable     :: ion_energy, ion_volume
    integer, dimension(:), allocatable           :: ion_num, point_count
    character(len=256), dimension(:), allocatable:: ion_label, ion_symmetry, ion_formula
-
    integer, public                              :: number_points, number_features
 
 contains
@@ -44,7 +43,7 @@ contains
       do
          read (unit, *, iostat=stat) line
          if (stat /= 0) then
-            exit  ! Exit the loop on EOF
+            exit
          else
             number_of_rows = number_of_rows + 1
          end if

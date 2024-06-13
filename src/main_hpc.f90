@@ -47,15 +47,8 @@ program main
 
    call low_dimension_distribution()
 
-   write (*,*) 'high_dist_matrix', high_dist_matrix(1, 1), high_dist_matrix(1, 2), high_dist_matrix(1, 3), high_dist_matrix(1, 4), high_dist_matrix(1, 5)
-   write (*, *) 'pij', pij(1, 1), pij(1, 2), pij(1, 3), pij(1, 4), pij(1, 5)
-   write (*, *) 'qij', qij(1, 1), qij(1, 2), qij(1, 3), qij(1, 4), qij(1, 5)
-   write (*, *) 'sigma', sigma(1), sigma(2), sigma(3), sigma(4), sigma(5)
-   write (*, *) 'point_radius', point_radius(1), point_radius(2), point_radius(3), point_radius(4), point_radius(5)
-   write (*, *) 'point_radius', sum(point_radius)
-   write (*, *) 'Optimising the low dimension distribution'
+   call tpsd(pij, point_radius, low_dimension_position, exaggeration_init, tolerance, max_iteration)
 
-   call tpsd(1e-8_sp, 10000)
    call write_file(trim('LJ13-sheap.xyz'))
 
 end program main

@@ -24,18 +24,19 @@ contains
 
       ! Local variables
       real(kind=sp)                                                                     :: exaggeration, step_size, gradient_norm, running_gradient_norm, z, inv_z
-      real(kind=sp), dimension(:), allocatable                                          :: gradient_vec, velocity
+      real(kind=sp), dimension(:), allocatable                                          :: gradient_vec
       integer                                                                           :: i, j
       real(kind=sp)                                                                     :: point_radius_coeff
       logical                                                                           :: growth_step_limit = .true.
 
       ! MPI variables
       real(kind=sp), dimension(:), allocatable                                          :: local_gradient_vec
-      real(kind=sp), dimension(:, :), allocatable                                        :: recv_gradient_vec
-      integer, dimension(nranks - 1)                                                      :: requests
+      real(kind=sp), dimension(:, :), allocatable                                       :: recv_gradient_vec
+      integer, dimension(nranks - 1)                                                    :: requests
       integer                                                                           :: request
-      integer                                                                           :: k, start, end, ierr, task, status(MPI_STATUS_SIZE), recv_status(MPI_STATUS_SIZE)
+      integer                                                                           :: k, start, end, ierr, task
 
+      ! Initialisation
       task = 1
       i = 0
       j = 0
@@ -52,11 +53,9 @@ contains
 
          call start_timer()
          allocate (local_gradient_vec(low_dimension*reduced_number_points))
-         allocate (velocity(low_dimension*reduced_number_points))
          allocate (gradient_vec(low_dimension*reduced_number_points))
          allocate (recv_gradient_vec(low_dimension*reduced_number_points, (nranks - 1)))
 
-         velocity = 0.0_sp
          gradient_vec = 0.0_sp
          local_gradient_vec = 0.0_sp
 
@@ -82,11 +81,9 @@ contains
 
             gradient_vec = gradient_vec + sum(recv_gradient_vec, dim=2)
 
-            step_size = calculate_stepsize(low_pos_vec, gradient_vec, init=((i == 1) .or. (i == exag_cutoff)))
+            call calculate_stepsize(low_pos_vec, gradient_vec, step_size, init=((i == 1) .or. (i == exag_cutoff)))
 
-            velocity = momentum_coeff*velocity - step_size*gradient_vec
-
-            low_pos_vec = low_pos_vec + velocity
+            low_pos_vec = low_pos_vec - step_size*gradient_vec
 
             do k = 1, nranks - 1
                call MPI_Isend(low_pos_vec, low_dimension*reduced_number_points, MPI_REAL4, k, 2, MPI_COMM_WORLD, requests(k), ierr)
@@ -126,8 +123,6 @@ contains
 
             call loss_gradient_core_mpi(pij_1d, point_radius_1d, low_pos_vec, local_gradient_vec, start, end)
 
-            print *, 'Rank: ', rank, 'Gradient calculated'
-
             gradient_vec = local_gradient_vec
 
             do k = 1, nranks - 1
@@ -138,11 +133,9 @@ contains
 
             gradient_vec = gradient_vec + sum(recv_gradient_vec, dim=2)
 
-            step_size = calculate_stepsize(low_pos_vec, gradient_vec, init=(j == 1))
+            call calculate_stepsize(low_pos_vec, gradient_vec, step_size, init=(j == 1))
 
-            velocity = momentum_coeff*velocity - step_size*gradient_vec
-
-            low_pos_vec = low_pos_vec + velocity
+            low_pos_vec = low_pos_vec - step_size*gradient_vec
 
             do k = 1, nranks - 1
                call MPI_Isend(low_pos_vec, low_dimension*reduced_number_points, MPI_REAL4, k, 2, MPI_COMM_WORLD, requests(k), ierr)
@@ -219,7 +212,7 @@ contains
       real(kind=sp), dimension(low_dimension*reduced_number_points), intent(inout)        :: low_pos_vec, gradient_vec
       real(kind=sp), dimension(low_dimension)                                             :: vec, pos
       real(kind=sp) :: qij
-      integer :: i, j, ierr
+      integer :: i, j
 
       gradient_vec = 0.0_sp
       z = real(reduced_number_points, sp)*(real(reduced_number_points, sp) - 1.0_sp)
@@ -249,7 +242,7 @@ contains
       real(kind=sp), dimension(low_dimension*reduced_number_points), intent(inout)        :: gradient_vec, low_pos_vec
       real(kind=sp), dimension(low_dimension)                                             :: vec, pos
       real(kind=sp)                                                                       :: qij, rij2, dist
-      integer :: i, j, ierr
+      integer :: i, j
 
       gradient_vec = 0.0_sp
       z = real(reduced_number_points, sp)*(real(reduced_number_points, sp) - 1.0_sp)
