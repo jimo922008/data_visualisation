@@ -30,7 +30,19 @@ contains
       real(kind=sp)             :: cost, step_size, gradient_norm, running_gradient_norm
       integer                   :: i, j
       logical                   :: growth_step_limit = .true.
-      real(kind=sp), dimension(low_dimension*reduced_number_points) :: low_pos_vec, gradient_vec, velocity
+      real(kind=sp), dimension(low_dimension*reduced_number_points) :: low_pos_vec, gradient_vec, velocity, m, v, m_hat, v_hat
+
+      real(kind=sp) :: beta1, beta2, epsilon, alpha, beta1_t, beta2_t
+
+      ! Initialize Adam parameters
+      beta1 = 0.9_sp
+      beta2 = 0.999_sp
+      epsilon = 1e-8_sp
+      alpha = 1e-3_sp
+      beta1_t = 1.0_sp
+      beta2_t = 1.0_sp
+      m = 0.0_sp
+      v = 0.0_sp
 
       call start_timer()
 
@@ -42,17 +54,30 @@ contains
 
          i = i + 1
 
+         beta1_t = beta1_t*beta1
+         beta2_t = beta2_t*beta2
+
          exaggeration = merge(1.0_sp, exaggeration_init, i > exag_cutoff)
 
          call loss_gradient_position(low_pos_vec, gradient_vec, cost, exaggeration)
 
-         step_size = calculate_stepsize(low_pos_vec, gradient_vec, init=((i == 1) .or. (i == exag_cutoff)))
+         !step_size = calculate_stepsize(low_pos_vec, gradient_vec, init=((i == 1) .or. (i == exag_cutoff)))
 
-         velocity = momentum_coeff*velocity - step_size*gradient_vec
+         !velocity = momentum_coeff*velocity - step_size*gradient_vec
 
-         low_pos_vec = low_pos_vec + velocity
+         !low_pos_vec = low_pos_vec + velocity
 
-         gradient_norm = dot_product(step_size*gradient_vec, gradient_vec)
+         !gradient_norm = dot_product(step_size*gradient_vec, gradient_vec)
+
+         ! Adam update
+         m = beta1*m + (1.0_sp - beta1)*gradient_vec
+         v = beta2*v + (1.0_sp - beta2)*(gradient_vec*gradient_vec)
+         m_hat = m/(1.0_sp - beta1_t)
+         v_hat = v/(1.0_sp - beta2_t)
+         low_pos_vec = low_pos_vec - alpha*m_hat/(sqrt(v_hat) + epsilon)
+
+         ! Calculate gradient_norm locally
+         gradient_norm = dot_product(m_hat/(sqrt(v_hat) + epsilon), gradient_vec)
 
          running_gradient_norm = running_gradient_norm + (log10(gradient_norm) - running_gradient_norm)/min(i, 100)
 
@@ -77,7 +102,7 @@ contains
 
          running_gradient_norm = running_gradient_norm + (log10(gradient_norm) - running_gradient_norm)/100
 
-         call handle_growth_phase(j, growth_step_limit)
+         call handle_growth_phase(j, point_radius, growth_step_limit)
 
          write (*, *) 'Cost: ', cost, ' Gradient norm: ', gradient_norm, 'running gradient norm', running_gradient_norm, ' Step size: ', step_size
          write (*, *) 'point radius', sum(point_radius)
@@ -251,11 +276,12 @@ contains
 
    end subroutine gradient_matrix_addnoise
 
-   subroutine handle_growth_phase(j, growth_step_limit)
+   subroutine handle_growth_phase(j, point_radius, growth_step_limit)
       implicit none
 
-      integer, intent(in)       :: j
-      logical, intent(inout)    :: growth_step_limit
+      integer, intent(in)             :: j
+      real(kind=sp), intent(inout)    :: point_radius(reduced_number_points)
+      logical, intent(inout)          :: growth_step_limit
 
       if (j < growth_steps) then
          if (j < 2) then
