@@ -24,7 +24,7 @@ contains
 
       ! Local variables
       real(kind=sp)                                                                     :: exaggeration, step_size, gradient_norm, running_gradient_norm, z, inv_z
-      real(kind=sp), dimension(:), allocatable                                          :: gradient_vec
+      real(kind=sp), dimension(:), allocatable                                          :: gradient_vec, gradient_vec_noise
       integer                                                                           :: i, j
       real(kind=sp)                                                                     :: point_radius_coeff
       logical                                                                           :: growth_step_limit = .true.
@@ -54,6 +54,7 @@ contains
          call start_timer()
          allocate (local_gradient_vec(low_dimension*reduced_number_points))
          allocate (gradient_vec(low_dimension*reduced_number_points))
+         allocate (gradient_vec_noise(low_dimension*reduced_number_points))
          allocate (recv_gradient_vec(low_dimension*reduced_number_points, (nranks - 1)))
 
          gradient_vec = 0.0_sp
@@ -81,9 +82,11 @@ contains
 
             gradient_vec = gradient_vec + sum(recv_gradient_vec, dim=2)
 
-            call calculate_stepsize(low_pos_vec, gradient_vec, step_size, init=((i == 1) .or. (i == exag_cutoff)))
+            call gradient_vec_addnoise(gradient_vec, gradient_vec_noise, 1e-2)
 
-            low_pos_vec = low_pos_vec - step_size*gradient_vec
+            call calculate_stepsize(low_pos_vec, gradient_vec_noise, step_size, init=((i == 1) .or. (i == exag_cutoff)))
+
+            low_pos_vec = low_pos_vec - step_size*gradient_vec_noise
 
             do k = 1, nranks - 1
                call MPI_Isend(low_pos_vec, low_dimension*reduced_number_points, MPI_REAL4, k, 2, MPI_COMM_WORLD, requests(k), ierr)
@@ -91,7 +94,7 @@ contains
 
             call MPI_Waitall(nranks - 1, requests, MPI_STATUSES_IGNORE, ierr)
 
-            gradient_norm = dot_product(step_size*gradient_vec, gradient_vec)
+            gradient_norm = dot_product(step_size*gradient_vec_noise, gradient_vec)
 
             running_gradient_norm = running_gradient_norm + (log10(gradient_norm) - running_gradient_norm)/min(i, 100)
 
@@ -133,9 +136,11 @@ contains
 
             gradient_vec = gradient_vec + sum(recv_gradient_vec, dim=2)
 
-            call calculate_stepsize(low_pos_vec, gradient_vec, step_size, init=(j == 1))
+            call gradient_vec_addnoise(gradient_vec, gradient_vec_noise, 1e-2)
 
-            low_pos_vec = low_pos_vec - step_size*gradient_vec
+            call calculate_stepsize(low_pos_vec, gradient_vec_noise, step_size, init=(j == 1))
+
+            low_pos_vec = low_pos_vec - step_size*gradient_vec_noise
 
             do k = 1, nranks - 1
                call MPI_Isend(low_pos_vec, low_dimension*reduced_number_points, MPI_REAL4, k, 2, MPI_COMM_WORLD, requests(k), ierr)
@@ -143,11 +148,11 @@ contains
 
             call MPI_Waitall(nranks - 1, requests, MPI_STATUSES_IGNORE, ierr)
 
-            gradient_norm = dot_product(step_size*gradient_vec, gradient_vec)
+            gradient_norm = dot_product(step_size*gradient_vec_noise, gradient_vec)
 
             running_gradient_norm = running_gradient_norm + (log10(gradient_norm) - running_gradient_norm)/100
 
-            write (*, *) 'Iteration: ', i+j, ' Gradient norm: ', running_gradient_norm, 'step size: ', step_size, 'point radius: ', sum(point_radius)
+            write (*, *) 'Iteration: ', i+j, ' Gradient norm: ', running_gradient_norm, 'step size: ', step_size, 'point radius: ', sum(point_radius_1d)
 
          end do
 
@@ -230,8 +235,6 @@ contains
       end do
       !$omp end parallel do
 
-      call gradient_matrix_addnoise(gradient_vec, 1e-2_sp)
-
    end subroutine loss_gradient_position_mpi
 
    subroutine loss_gradient_core_mpi(pij_1d, point_radius, low_pos_vec, gradient_vec, start, end)
@@ -269,8 +272,6 @@ contains
          end do
       end do
       !$omp end parallel do
-
-      call gradient_matrix_addnoise(gradient_vec, 1e-2_sp)
 
    end subroutine loss_gradient_core_mpi
 

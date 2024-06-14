@@ -47,8 +47,8 @@ program main
 
    call low_dimension_distribution()
 
-   call tpsd(pij, point_radius, low_dimension_position, exaggeration_init, tolerance, max_iteration)
-
+   !call tpsd(pij, point_radius, low_dimension_position, exaggeration_init, tolerance, max_iteration)
+   call adam(pij, point_radius, low_dimension_position, tolerance, max_iteration)
    call write_file(trim('LJ13-sheap.xyz'))
 
 end program main
