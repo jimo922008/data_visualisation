@@ -1,2 +1,8 @@
 build
+bin
+docs
+*.xyz
+*.png
+*.dat
+*.vec
 *.xyz

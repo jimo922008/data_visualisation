@@ -11,9 +11,18 @@ program sheap_mpi
    USE optimisation
    USE mpi_model
 
-   character(len=256)  :: filename
-   integer             :: ierr, rank, nranks
-   real(kind=sp), dimension(:), allocatable ::pij_1d, low_pos_vec, point_radius_1d
+   ! Declare variables
+   character(len=256)            :: filename
+   type(file_data)               :: data
+   type(high_dim_parameters)     :: high_dim_params
+   type(low_dim_parameters)      :: low_dim_params
+   type(high_dim_results)        :: results
+   type(low_dim_results)         :: low_results
+   type(optimisation_parameters) :: optimisation_params
+
+   ! MPI variables
+   integer                       :: ierr, rank, nranks
+   real(kind=sp), allocatable    :: pij_1d(:), low_pos_vec(:), point_radius_1d(:)
 
    call omp_set_num_threads(8)
    call MPI_Init(ierr)
@@ -28,41 +37,42 @@ program sheap_mpi
          call MPI_Abort(MPI_COMM_WORLD, 1, ierr)
       end if
 
-      call read_file(trim(filename))
+      call read_file(trim(filename), data)
 
-      call normalisation(data_vec, number_points, number_features)
+      call normalisation(data)
 
       print *, 'Data normalised.'
 
-      call high_dimension_distribution()
-      call low_dimension_distribution()
+      call high_dimension_distribution(data, results, high_dim_params)
+      call low_dimension_distribution(data, high_dim_params, low_dim_params, results, low_results)
       write (*, *) 'Optimising the low dimension distribution'
 
-      allocate (pij_1d(reduced_number_points*reduced_number_points))
-      allocate (low_pos_vec(low_dimension*reduced_number_points))
+      allocate (pij_1d((results%reduced_number_points)**2))
+      allocate (low_pos_vec((low_dim_params%low_dimension)*(results%reduced_number_points)))
 
-      pij_1d = reshape(pij, shape(pij_1d))
-      low_pos_vec = reshape(low_dimension_position, (/low_dimension*reduced_number_points/))
-      point_radius_1d = point_radius
+      pij_1d = reshape(results%pij, shape(pij_1d))
+      low_pos_vec = reshape(low_results%low_dimension_position, (/(low_dim_params%low_dimension)*(results%reduced_number_points)/))
+      point_radius_1d = low_results%point_radius
    end if
 
-   call MPI_Bcast(reduced_number_points, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierr)
+   call MPI_Bcast(results%reduced_number_points, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierr)
 
    if (rank /= 0) then
-      allocate (pij_1d(reduced_number_points*reduced_number_points))
-      allocate (low_pos_vec(low_dimension*reduced_number_points))
-      allocate (point_radius_1d(reduced_number_points))
+      allocate (pij_1d(results%reduced_number_points*results%reduced_number_points))
+      allocate (low_pos_vec(low_dim_params%low_dimension*results%reduced_number_points))
+      allocate (point_radius_1d(results%reduced_number_points))
    end if
 
-   call MPI_Bcast(pij_1d, reduced_number_points*reduced_number_points, MPI_REAL, 0, MPI_COMM_WORLD, ierr)
-   call MPI_Bcast(low_pos_vec, low_dimension*reduced_number_points, MPI_REAL, 0, MPI_COMM_WORLD, ierr)
-   call MPI_Bcast(point_radius_1d, reduced_number_points, MPI_REAL, 0, MPI_COMM_WORLD, ierr)
+   call MPI_Bcast(pij_1d, results%reduced_number_points*results%reduced_number_points, MPI_REAL, 0, MPI_COMM_WORLD, ierr)
+   call MPI_Bcast(low_pos_vec, low_dim_params%low_dimension*results%reduced_number_points, MPI_REAL, 0, MPI_COMM_WORLD, ierr)
+   call MPI_Bcast(point_radius_1d, results%reduced_number_points, MPI_REAL, 0, MPI_COMM_WORLD, ierr)
    call MPI_Barrier(MPI_COMM_WORLD, ierr)
 
-   call tpsd_mpi(pij_1d, point_radius_1d, low_pos_vec, tolerance, max_iteration, rank, nranks)
+   call tpsd_mpi(pij_1d, point_radius_1d, low_pos_vec, results, low_results, optimisation_params, low_dim_params, rank, nranks)
 
    if (rank == 0) then
-      call write_file(trim('LJ13-sheap.xyz'))
+      low_results%point_radius = point_radius_1d
+      call write_file(trim('LJ13-sheap.xyz'), data, results, low_results, low_dim_params)
    end if
 
    call MPI_Finalize(ierr)
