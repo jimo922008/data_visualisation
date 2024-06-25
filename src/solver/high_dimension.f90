@@ -199,13 +199,12 @@ contains
       pji_conditional = calculating_pji(sigma, i, high_dist_matrix)
       index = size(high_dist_matrix, 1)
 
-      !$omp parallel do private(j) reduction(+:entropy)
+      !omp parallel do private(j) reduction(+:entropy)
       do j = 1, index
          if ((i == j) .or. (pji_conditional(j) < tiny(1.0_sp))) cycle
-
          entropy = entropy - pji_conditional(j)*log(pji_conditional(j))/log(2.0_sp)
       end do
-      !$omp end parallel do
+      !omp end parallel do
 
       perplexity = 2.0_sp**(entropy)
 
