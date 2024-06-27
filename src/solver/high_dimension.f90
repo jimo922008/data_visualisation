@@ -169,9 +169,7 @@ contains
          end do
 
          call bisection_method(i, perplexity, low_sigma, high_sigma, tolerance, high_dist_matrix, sigma(i))
-
          print *, 'sigma', i, sigma(i)
-
       end do
       !$omp end parallel do
 

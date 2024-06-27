@@ -185,20 +185,13 @@ CONTAINS
       real(kind=sp)                                  :: exaggeration, cost_criteria
       logical                                        :: growth_step_limit = .true.
       real(kind=sp)                                  :: step_size, gradient_norm, running_gradient_norm
-      real(kind=sp), allocatable                     :: low_pos_vec(:), perturbed_pos_vec(:)
+      real(kind=sp), allocatable                     :: low_pos_vec(:)
       real(kind=sp), allocatable                     :: gradient_vec(:), gradient_vec_noise(:)
-      real(kind=sp), allocatable                     :: gradient_vec_current(:), gradient_vec_perturbed(:), refined_gradient_vec(:)
       character(len=128)                             :: filename
-      real(kind=sp), parameter                       :: delta = 1e-2_sp
-      real(kind=sp), parameter                       :: delta_g = 1.0_sp
 
       allocate (low_pos_vec((low_dim_params%low_dimension)*(results%reduced_number_points)))
       allocate (gradient_vec(size(low_pos_vec)))
       allocate (gradient_vec_noise(size(low_pos_vec)))
-      allocate (perturbed_pos_vec(size(low_pos_vec)))
-      allocate (gradient_vec_current(size(low_pos_vec)))
-      allocate (refined_gradient_vec(size(low_pos_vec)))
-      allocate (gradient_vec_perturbed(size(low_pos_vec)))
 
       call start_timer()
 
@@ -214,19 +207,15 @@ CONTAINS
 
          exaggeration = merge(1.0_sp, (optimisation_params%exaggeration_init), i > (optimisation_params%exag_cutoff))
 
-         perturbed_pos_vec = low_pos_vec + delta*gradient_vec_current
+         call loss_gradient_position(low_pos_vec, gradient_vec, exaggeration, results, low_dim_params)
 
-         call loss_gradient_position(perturbed_pos_vec, gradient_vec_perturbed, exaggeration, results, low_dim_params)
-
-         refined_gradient_vec = (gradient_vec_perturbed - gradient_vec_current)/delta
-
-         call gradient_vec_addnoise(refined_gradient_vec, gradient_vec_noise, 1e-2_sp)
+         call gradient_vec_addnoise(gradient_vec, gradient_vec_noise, 1e-2_sp)
 
   call calculate_stepsize(low_pos_vec, gradient_vec_noise, step_size, init=((i == 1) .or. (i == (optimisation_params%exag_cutoff))))
 
-         low_pos_vec = low_pos_vec - step_size*refined_gradient_vec
+         low_pos_vec = low_pos_vec - step_size*gradient_vec_noise
 
-         gradient_norm = dot_product(step_size*refined_gradient_vec, gradient_vec_noise)
+         gradient_norm = max(dot_product(step_size*gradient_vec, gradient_vec_noise), 1e-10_sp)
 
          running_gradient_norm = running_gradient_norm + (log10(gradient_norm) - running_gradient_norm)/min(i, 100)
 
@@ -239,19 +228,15 @@ CONTAINS
       do while (((running_gradient_norm > log10(optimisation_params%threshold)) .or. (growth_step_limit)) .and. (i + j < optimisation_params%maxsteps))
          j = j + 1
 
-         perturbed_pos_vec = low_pos_vec + delta_g*gradient_vec_current
+         call loss_gradient_core(low_pos_vec, gradient_vec, results, low_dim_params, low_results, optimisation_params)
 
-       call loss_gradient_core(perturbed_pos_vec, gradient_vec_perturbed, results, low_dim_params, low_results, optimisation_params)
-
-         refined_gradient_vec = (gradient_vec_perturbed - gradient_vec_current)/delta_g
-
-         call gradient_vec_addnoise(refined_gradient_vec, gradient_vec_noise, 1e-2_sp)
+         call gradient_vec_addnoise(gradient_vec, gradient_vec_noise, 1e-2_sp)
 
          call calculate_stepsize(low_pos_vec, gradient_vec_noise, step_size, init=(j == 1))
 
-         low_pos_vec = low_pos_vec - step_size*refined_gradient_vec
+         low_pos_vec = low_pos_vec - step_size*gradient_vec_noise
 
-         gradient_norm = dot_product(step_size*refined_gradient_vec, refined_gradient_vec)
+         gradient_norm = max(dot_product(step_size*gradient_vec, gradient_vec_noise), 1e-12_sp)
 
          running_gradient_norm = running_gradient_norm + (log10(gradient_norm) - running_gradient_norm)/100
 
@@ -399,6 +384,9 @@ CONTAINS
          end do
       end do
       !$omp end parallel do
+
+      deallocate (pos)
+      deallocate (vec)
 
    end subroutine loss_gradient_core
 
