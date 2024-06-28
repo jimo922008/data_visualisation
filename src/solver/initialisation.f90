@@ -92,7 +92,9 @@ contains
 
       results%data_clean = data%data_vec(:, pack([(i, i=1, data%number_points)], data%point_count > 0))
 
-      results%high_dist_matrix_clean = results%high_dist_matrix(pack([(i, i=1, data%number_points)], data%point_count > 0), pack([(i, i=1, data%number_points)], data%point_count > 0))
+      results%high_dist_matrix_clean = results%high_dist_matrix( &
+                                       pack([(i, i=1, data%number_points)], data%point_count > 0), &
+                                       pack([(i, i=1, data%number_points)], data%point_count > 0))
 
       results%point_count_clean = data%point_count(pack([(i, i=1, data%number_points)], data%point_count > 0))
 

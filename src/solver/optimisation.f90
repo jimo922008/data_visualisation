@@ -215,7 +215,7 @@ CONTAINS
 
          low_pos_vec = low_pos_vec - step_size*gradient_vec_noise
 
-         gradient_norm = max(dot_product(step_size*gradient_vec, gradient_vec_noise), 1e-10_sp)
+         gradient_norm = dot_product(step_size*gradient_vec, gradient_vec_noise)
 
          running_gradient_norm = running_gradient_norm + (log10(gradient_norm) - running_gradient_norm)/min(i, 100)
 
@@ -236,7 +236,7 @@ CONTAINS
 
          low_pos_vec = low_pos_vec - step_size*gradient_vec_noise
 
-         gradient_norm = max(dot_product(step_size*gradient_vec, gradient_vec_noise), 1e-12_sp)
+         gradient_norm = dot_product(step_size*gradient_vec, gradient_vec_noise)
 
          running_gradient_norm = running_gradient_norm + (log10(gradient_norm) - running_gradient_norm)/100
 

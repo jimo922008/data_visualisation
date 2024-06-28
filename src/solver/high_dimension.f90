@@ -31,9 +31,9 @@ contains
    subroutine high_dimension_distribution(data, results, high_dim_params)
       !> @brief This subroutine calculates the pij matrix.
       !> @details The high dimension distance matrix is calculated using the formula -2*data_vec*data_vec' + sum(data_vec*data_vec, dim=1) + sum(data_vec*data_vec, dim=1)' + 1e-10.
-      !! The sigma calculation is done using the bisection method. The pij calculation is done using the high dimension distance matrix and the sigma value.
-      !! sgmm is used for the matrix multiplication.
-      !! The pij matrix is calculated using the formula exp(-high_dist_matrix_clean(j, i)/(sigma(i)*sigma(i)*2.0_sp)). The pij matrix is then normalised.
+       !! The sigma calculation is done using the bisection method. The pij calculation is done using the high dimension distance matrix and the sigma value.
+       !! sgmm is used for the matrix multiplication.
+       !! The pij matrix is calculated using the formula exp(-high_dist_matrix_clean(j, i)/(sigma(i)*sigma(i)*2.0_sp)). The pij matrix is then normalised.
       !> @param[in] data The file_data structure containing the data vector and other information.
       !> @param[inout] results The high_dim_results structure containing the high dimension distance matrix, sigma, distribution and other information.
       !> @param[in] high_dim_params The high_dim_params structure containing high dimension parameters.
