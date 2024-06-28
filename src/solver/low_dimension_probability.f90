@@ -10,7 +10,6 @@ MODULE low_dimension_probability
    PUBLIC :: calculating_low_dimension_distance
    PUBLIC :: calculating_qij
    PUBLIC :: random_add_noise
-   PUBLIC :: write_low_file
 
 contains
 
@@ -38,8 +37,6 @@ contains
       write (*, *) 'low dimension normalisation done.'
       call hard_sphere_initialisation(results, low_results, low_dim_params)
       write (*, *) 'hard sphere initialisation done.'
-
-      call write_low_file('init_results', data, results, low_results, low_dim_params)
 
    end subroutine low_dimension_distribution
 
@@ -279,45 +276,5 @@ contains
       !$omp end parallel do
 
    end subroutine hard_sphere_initialisation
-
-   subroutine write_low_file(filename, data, results, low_results, low_dim_params)
-      !> @brief Write the data to a file
-      !> @param filename The name of the file to write to
-      !> @param data structure containing the original data to write
-      !> @param low_results structure containing the results of the low dimension optimisation
-
-      IMPLICIT NONE
-
-      !Input variables
-      character(len=*)                    :: filename
-      type(file_data), intent(in)         :: data
-      type(high_dim_results), intent(in)  :: results
-      type(low_dim_results), intent(in)   :: low_results
-      type(low_dim_parameters), intent(in):: low_dim_params
-
-      !Local variables
-      character(len=20):: fmt
-      integer :: unit_number
-      integer :: i, j
-
-      unit_number = 20
-      open (unit=unit_number, file=trim(filename), status='replace', action='write')
-
-      write (unit_number, '(i0)') results%reduced_number_points
-      write (unit_number, '(a,i0,a,f16.10)') 'dim ', low_dim_params%low_dimension
-
-      print *, 'Writing data to file ', trim(filename)
-
-      do i = 1, results%reduced_number_points
-         write (fmt, *) low_dim_params%low_dimension
-            write(unit_number,'(a2,'//trim(adjustl(fmt))//'g25.13,a50,i6,a15,a10,g25.13,g25.13,i6,g25.13)') 'H',(low_results%low_dimension_position(j,i),j=1,low_dim_params%low_dimension),&
-            trim(results%ion_label_clean(i)), results%ion_num_clean(i), trim(results%ion_formula_clean(i)), trim(results%ion_symmetry_clean(i)), results%ion_volume_clean(i), results%ion_energy_clean(i), &
-            results%point_count_clean(i), max(low_dim_params%sphere_radius, low_results%point_radius(i))
-      end do
-
-      flush (unit_number)
-      close (unit_number)
-
-   end subroutine write_low_file
 
 end module low_dimension_probability

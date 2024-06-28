@@ -1,5 +1,11 @@
 cmake_minimum_required(VERSION 3.15)
 
+if (CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+        set(CMAKE_Fortran_COMPILER "gfortran")
+else ()
+        set(CMAKE_Fortran_COMPILER "ifort") 
+endif()
+
 project(sheap
         VERSION 1.0 
         DESCRIPTION "Sheap project using Fortran" 
@@ -21,4 +27,4 @@ include(CTest)
 enable_testing()
 
 add_subdirectory(src)
-# add_subdirectory(test)
+add_subdirectory(test)

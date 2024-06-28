@@ -40,7 +40,7 @@ contains
 
       ! * Declare variables
       character(len=*), intent(in)                :: filename
-      type(file_data), intent(out)               :: data
+      type(file_data), intent(out)                :: data
 
       ! * Declare local variables
       integer                       :: unit, stat, col, number_of_rows
@@ -72,9 +72,6 @@ contains
       do
          read (unit, *, iostat=stat, iomsg=iomsg) line
          if (stat /= 0) then
-            print *, 'Error reading the data'
-            print *, 'IOSTAT value:', stat
-            print *, 'IOMSG value:', iomsg
             exit
          else
             number_of_rows = number_of_rows + 1
