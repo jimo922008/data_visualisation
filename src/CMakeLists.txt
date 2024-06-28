@@ -4,7 +4,7 @@ add_subdirectory(solver)
 add_subdirectory(timing)
 add_subdirectory(mpi_communication)
 
-add_executable(sheap main_hpc.f90)
+add_executable(sheap main.f90)
 
 target_link_libraries(
     sheap
@@ -31,10 +31,10 @@ target_include_directories(sheap
                 
 )
 
-add_executable(sheap_fast sheap_mpi.f90)
+add_executable(sheap_mpi sheap_mpi.f90)
 
 target_link_libraries(
-    sheap_fast
+    sheap_mpi
     PRIVATE 
     parameters_lib
     datain_lib
@@ -50,7 +50,7 @@ target_link_libraries(
 )
 
 
-target_include_directories(sheap_fast
+target_include_directories(sheap_mpi
                  PUBLIC
                 ${CMAKE_BINARY_DIR}/src/parameters
                 ${CMAKE_BINARY_DIR}/src/data_io
