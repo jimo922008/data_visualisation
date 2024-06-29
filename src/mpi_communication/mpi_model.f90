@@ -14,31 +14,46 @@ MODULE mpi_model
 contains
 
   subroutine tpsd_mpi(pij_1d, point_radius_1d, low_pos_vec, results, low_results, optimisation_params, low_dim_params, rank, nranks)
+      !> @brief Main function for the MPI version of the TPSD algorithm
+      !> @param[in] results High dimensional results
+      !> @param[out] low_results Low dimensional results
+      !> @param[in] optimisation_params Optimisation parameters  
+      !> @param[in] low_dim_params Low dimensional parameters
+      !> @param[in] rank Rank of the current process
+      !> @param[in] nranks Total number of processes
+      !> @param[in] pij_1d 1D array of pairwise probabilities
+      !> @param[inout] point_radius_1d 1D array of point radii
+      !> @param[inout] low_pos_vec 1D array of low dimensional positions
+      !> @details This function is the main function for the MPI version of the TPSD algorithm. 
+      !! It is responsible for distributing the work between the processes, calculating the loss gradient and updating the low dimensional positions. 
+      !! The function is split into two main phases: the exaggeration phase and the growth phase. The exaggeration phase is responsible for finding the optimal low dimensional positions for the given high dimensional data.
+      !! The growth phase is responsible for expanding the point radii to ensure that the low dimensional positions are not too close to each other. The function uses the MPI library to communicate between the processes.
+
 
       ! Arguments
-      type(high_dim_results), intent(in)              :: results
-      type(low_dim_results), intent(out)              :: low_results
-      type(optimisation_parameters), intent(in)       :: optimisation_params
-      type(low_dim_parameters), intent(in)            :: low_dim_params
+      type(high_dim_results), intent(in)                       :: results
+      type(low_dim_results), intent(out)                       :: low_results
+      type(optimisation_parameters), intent(in)                :: optimisation_params
+      type(low_dim_parameters), intent(in)                     :: low_dim_params
 
-      integer, intent(in)                             :: rank, nranks
-      real(kind=sp), intent(in)                       :: pij_1d(:)
-      real(kind=sp), intent(inout)                    :: point_radius_1d(:)
-      real(kind=sp), intent(inout)                    :: low_pos_vec(:)
+      integer, intent(in)                                      :: rank, nranks
+      real(kind=sp), intent(in)                                :: pij_1d(:)
+      real(kind=sp), intent(inout)                             :: point_radius_1d(:)
+      real(kind=sp), intent(inout)                             :: low_pos_vec(:)
 
       ! Local variables
-      real(kind=sp)                                                                     :: exaggeration, step_size, gradient_norm, running_gradient_norm
-    real(kind=sp)                                                                     :: point_radius_coeff, cost_criteria, z, inv_z
-      real(kind=sp), dimension(:), allocatable                                          :: gradient_vec, gradient_vec_noise
-      integer                                                                           :: i, j
-      logical                                                                           :: growth_step_limit = .true.
+      real(kind=sp)                                            :: exaggeration, step_size, gradient_norm, running_gradient_norm
+      real(kind=sp)                                            :: point_radius_coeff, cost_criteria, z, inv_z
+      real(kind=sp), dimension(:), allocatable                 :: gradient_vec, gradient_vec_noise
+      integer                                                  :: i, j
+      logical                                                  :: growth_step_limit = .true.
 
       ! MPI variables
-      real(kind=sp), dimension(:), allocatable                                          :: local_gradient_vec
-      real(kind=sp), dimension(:, :), allocatable                                       :: recv_gradient_vec
-      integer, dimension(nranks - 1)                                                    :: requests
-      integer                                                                           :: request
-      integer                                                                           :: k, start, end, ierr, task
+      real(kind=sp), dimension(:), allocatable                 :: local_gradient_vec
+      real(kind=sp), dimension(:, :), allocatable              :: recv_gradient_vec
+      integer, dimension(nranks - 1)                           :: requests
+      integer                                                  :: request
+      integer                                                  :: k, start, end, ierr, task
 
       ! Initialisation
       task = 1
@@ -77,7 +92,7 @@ contains
                call MPI_Isend(exaggeration, 1, MPI_REAL4, k, 0, MPI_COMM_WORLD, requests(k), ierr)
             end do
 
-         call loss_gradient_position_mpi(pij_1d, low_pos_vec, local_gradient_vec, exaggeration, start, end, results, low_dim_params)
+            call loss_gradient_position_mpi(pij_1d, low_pos_vec, local_gradient_vec, exaggeration, start, end, results, low_dim_params)
 
             gradient_vec = local_gradient_vec
 
@@ -91,7 +106,7 @@ contains
 
             call gradient_vec_addnoise(gradient_vec, gradient_vec_noise, 1e-2)
 
-    call calculate_stepsize(low_pos_vec, gradient_vec_noise, step_size, init=((i == 1) .or. (i == optimisation_params%exag_cutoff)))
+            call calculate_stepsize(low_pos_vec, gradient_vec_noise, step_size, init=((i == 1) .or. (i == optimisation_params%exag_cutoff)))
 
             low_pos_vec = low_pos_vec - step_size*gradient_vec_noise
 
@@ -217,20 +232,32 @@ contains
    end subroutine tpsd_mpi
 
    subroutine loss_gradient_position_mpi(pij_1d, low_pos_vec, gradient_vec, exaggeration, start, end, results, low_dim_params)
+
+      !> @brief Calculates the loss gradient for the low dimensional positions
+      !> @param[in] results High dimensional results
+      !> @param[in] low_dim_params Low dimensional parameters
+      !> @param[in] exaggeration Exaggeration factor
+      !> @param[in] start Start index for the loop
+      !> @param[in] end End index for the loop
+      !> @param[in] pij_1d 1D array of pairwise probabilities
+      !> @param[inout] low_pos_vec 1D array of low dimensional positions
+      !> @param[inout] gradient_vec 1D array of the gradient
+      !> @details This function calculates the loss gradient for the low dimensional positions. The function is parallelised using OpenMP.
+
       implicit none
 
       ! Arguments
-      type(high_dim_results), intent(in)                                                  :: results
-      type(low_dim_parameters), intent(in)                                                :: low_dim_params
-      real(kind=sp), intent(in)                                                           :: exaggeration
-      integer, intent(in)                                                                 :: start, end
+      type(high_dim_results), intent(in)                              :: results
+      type(low_dim_parameters), intent(in)                            :: low_dim_params
+      real(kind=sp), intent(in)                                       :: exaggeration
+      integer, intent(in)                                             :: start, end
       real(kind=sp), intent(in)                                       :: pij_1d(:)
       real(kind=sp), intent(inout)                                    :: low_pos_vec(:), gradient_vec(:)
 
       ! Local variables
       real(kind=sp), allocatable                                      :: vec(:), pos(:)
       real(kind=sp)                                                   :: qij
-      integer :: i, j, index_i, index_j, index_ii, index_jj, index_pij, index
+      integer                                                         :: i, j, index_i, index_j, index_ii, index_jj, index_pij, index
 
       allocate (vec(low_dim_params%low_dimension))
       allocate (pos(low_dim_params%low_dimension))
@@ -263,6 +290,19 @@ contains
    end subroutine loss_gradient_position_mpi
 
    subroutine loss_gradient_core_mpi(pij_1d, point_radius, low_pos_vec, gradient_vec, start, end, results, low_dim_params, optimisation_params)
+
+      !> @brief Calculates the loss gradient during the hard sphere growth phase.
+      !> @param[in] results High dimensional results
+      !> @param[in] low_dim_params Low dimensional parameters
+      !> @param[in] optimisation_params Optimisation parameters
+      !> @param[in] start Start index for the loop
+      !> @param[in] end End index for the loop
+      !> @param[in] pij_1d 1D array of pairwise probabilities
+      !> @param[in] point_radius 1D array of point radii
+      !> @param[inout] low_pos_vec 1D array of low dimensional positions
+      !> @param[inout] gradient_vec 1D array of the gradient
+      !> @details This function calculates the loss gradient during the hard sphere growth phase. The function is parallelised using OpenMP.
+
       implicit none
 
       ! Arguments
@@ -277,7 +317,7 @@ contains
       ! Local variables
       real(kind=sp), allocatable                      :: vec(:), pos(:)
       real(kind=sp)                                   :: qij, rij2, dist
-      integer :: i, j, index_i, index_j, index_ii, index_jj, index_pij, index
+      integer                                         :: i, j, index_i, index_j, index_ii, index_jj, index_pij, index
 
       allocate (vec(low_dim_params%low_dimension))
       allocate (pos(low_dim_params%low_dimension))
@@ -320,6 +360,16 @@ contains
    end subroutine loss_gradient_core_mpi
 
    subroutine work_distribution(rank, nranks, reduced_number_points, start, end)
+
+      !> @brief Distributes the work between the processes
+      !> @param[in] rank Rank of the current process
+      !> @param[in] nranks Total number of processes
+      !> @param[in] reduced_number_points Number of points after removing duplicates.
+      !> @param[out] start Start index for the loop
+      !> @param[out] end End index for the loop
+      !> @details This function distributes the work between the processes. 
+      !! The function is used to split the work between the processes in the loss gradient calculation.
+
       implicit none
       integer, intent(in)  :: rank, nranks, reduced_number_points
       integer, intent(out) :: start, end
@@ -354,6 +404,14 @@ contains
    end subroutine work_distribution
 
    subroutine growth_coeff_mpi(j, growth_steps, point_radius_coeff, growth_step_limit)
+
+      !> @brief Calculates the growth coefficient for the hard sphere growth phase
+      !> @param[in] j Current iteration
+      !> @param[in] growth_steps Number of growth steps
+      !> @param[inout] point_radius_coeff Growth coefficient
+      !> @param[inout] growth_step_limit Limit for the growth steps
+      !> @details This function calculates the growth coefficient for the hard sphere growth phase.
+      
       implicit none
 
       integer, intent(in)             :: j

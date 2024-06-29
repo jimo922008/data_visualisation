@@ -392,6 +392,12 @@ CONTAINS
 
    subroutine calculate_stepsize(current_position, current_gradient, step_size, init)
 
+      !> @brief Calculates the step size for the optimisation algorithm
+      !> @param current_position The current position
+      !> @param current_gradient The current gradient
+      !> @param step_size The step size
+      !> @param init Flag to initialise the previous position and gradient
+
       ! Input variables
       logical, optional, intent(in)                                    :: init
       real(kind=sp), dimension(:), intent(in)                          :: current_position, current_gradient
@@ -470,6 +476,13 @@ CONTAINS
    end subroutine gradient_vec_addnoise
 
    subroutine handle_growth_phase(j, point_radius, optimisation_params, growth_step_limit)
+
+      !> @brief Handles the growth phase of the optimisation algorithm
+      !> @param j The current growth phase iteration
+      !> @param point_radius The point radius
+      !> @param optimisation_params structure containing the parameters of the optimisation algorithm
+      !> @param growth_step_limit Flag to limit the growth phase
+      !> @details The function controls the point radius increase in the growth phase. 
       implicit none
 
       ! Input variables
@@ -491,6 +504,12 @@ CONTAINS
    end subroutine handle_growth_phase
 
    subroutine calculate_cost(results, low_results, low_dim_params, cost)
+
+      !> @brief Calculates the cost function
+      !> @param results structure containing the results of the high dimensional data
+      !> @param low_results structure containing the results of the low dimensional data
+      !> @param low_dim_params structure containing the parameters of the low dimensional data
+      !> @param cost The cost function
 
       IMPLICIT NONE
 
@@ -516,7 +535,7 @@ CONTAINS
       do i = 1, results%reduced_number_points
          do j = i + 1, results%reduced_number_points
             if (results%pij(j, i) > 0 .and. results%pij(j, i) < 1) then
- cost_zero = cost_zero + results%pij(j, i)*log(results%pij(j, i))*2.0_sp + (1 - results%pij(j, i))*log(1 - results%pij(j, i))*2.0_sp
+               cost_zero = cost_zero + results%pij(j, i)*log(results%pij(j, i))*2.0_sp + (1 - results%pij(j, i))*log(1 - results%pij(j, i))*2.0_sp
             else if (results%pij(i, j) > 1) then
                cost_zero = cost_zero + results%pij(j, i)*log(results%pij(j, i))*2.0_sp
             else if (results%pij(i, j) < 0) then

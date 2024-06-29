@@ -10,12 +10,12 @@ repos:
   - repo: local
     hooks:
 
-      - id: fprettify
-        name: formatting code 
-        language: python
-        entry: fprettify
-        types: [fortran]
-        always_run: true
+      # - id: fprettify
+      #   name: formatting code 
+      #   language: python
+      #   entry: fprettify
+      #   types: [fortran]
+      #   always_run: true
 
       - id: cmake-gen-release-target
         name: CMake generate target 

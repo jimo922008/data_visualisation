@@ -178,6 +178,13 @@ contains
    end subroutine find_sigma
 
    function calculating_perplexity(sigma, i, high_dist_matrix) result(perplexity)
+
+      !> @brief This function calculates the perplexity value.
+      !> @param[in] sigma The sigma value.
+      !> @param[in] i The index.
+      !> @param[in] high_dist_matrix The high dimension distance matrix.
+      !> @return The perplexity value.
+
       implicit none
 
       ! Input arguments
@@ -211,6 +218,13 @@ contains
    end function calculating_perplexity
 
    function calculating_pji(sigma, i, high_dist_matrix) result(pji_conditional)
+
+      !> @brief This function calculates the conditional probability.
+      !> @param[in] sigma The sigma value.
+      !> @param[in] i The index.
+      !> @param[in] high_dist_matrix The high dimension distance matrix.
+      !> @return The conditional probability.
+
       implicit none
 
       ! Input arguments
@@ -240,6 +254,17 @@ contains
    end function calculating_pji
 
    subroutine bisection_method(i, perplexity, low_sigma, high_sigma, tolerance, high_dist_matrix, sigma)
+
+      !> @brief This subroutine calculates the sigma value using the bisection method.
+      !> @param[in] i The index.
+      !> @param[in] perplexity The perplexity value.
+      !> @param[in] tolerance The tolerance value.
+      !> @param[in] sigma The sigma value.
+      !> @param[in] low_sigma The low sigma value.
+      !> @param[in] high_sigma The high sigma value.
+      !> @param[in] high_dist_matrix The high dimension distance matrix.
+      !> @param[out] sigma The sigma value.
+      !> @details The sigma calculation is done using the bisection method.
       implicit none
 
       ! Input arguments
