@@ -277,12 +277,16 @@ contains
       ! Local variables
       real(sp):: low_perplexity, mid_perplexity, high_perplexity, mid_sigma
       logical :: condition
+      integer :: j
 
       low_perplexity = calculating_perplexity(low_sigma, i, high_dist_matrix)
       high_perplexity = calculating_perplexity(high_sigma, i, high_dist_matrix)
       mid_perplexity = huge(1.0_sp)
+      j = 0
 
-      do while ((abs(high_sigma - low_sigma) > tolerance) .and. (abs(mid_perplexity - perplexity) > tolerance))
+      do while ((abs(high_sigma - low_sigma) > tolerance) .and. (abs(mid_perplexity - perplexity) > tolerance) .and. j < 100)
+         
+         j = j + 1
          mid_sigma = (low_sigma + high_sigma)/2.0_sp
          if ((abs(mid_sigma - low_sigma) < tolerance) .or. (abs(mid_sigma - high_sigma) < tolerance)) exit
 

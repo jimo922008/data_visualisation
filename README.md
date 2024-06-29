@@ -19,11 +19,11 @@ mpirun -np {number of ranks} ./bin/sheap_mpi {input file}
 ```
 For example, to run the example LJ13 data set, you can run the command:
 ```bash
-mpirun -np 4 ./bin/sheap_mpi LJ13.vec
+mpirun -np 4 ./bin/sheap_mpi test/LJ13.vec
 ```
 Alternatively, you can also run the command if you would like the code with single rank. 
 ```bash
-./bin/sheap LJ13.vec
+./bin/sheap test/LJ13.vec
 ```
 
 (5) Clean the code: by running the command 
