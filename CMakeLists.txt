@@ -1,9 +1,21 @@
 cmake_minimum_required(VERSION 3.15)
 
-if (CMAKE_SYSTEM_NAME STREQUAL "Darwin")
-        set(CMAKE_Fortran_COMPILER "gfortran")
-else ()
-        set(CMAKE_Fortran_COMPILER "ifort") 
+set(FORTRAN_COMPILERS "gfortran" "ifort")
+
+set(COMPILER_FOUND FALSE)
+
+foreach(compiler_name ${FORTRAN_COMPILERS})
+    find_program(FOUND_COMPILER ${compiler_name})
+    if(FOUND_COMPILER)
+        set(CMAKE_Fortran_COMPILER ${FOUND_COMPILER} CACHE STRING "Path to the Fortran compiler" FORCE)
+        message(STATUS "Found Fortran compiler: ${FOUND_COMPILER}")
+        set(COMPILER_FOUND TRUE)
+        break()
+    endif()
+endforeach()
+
+if(NOT COMPILER_FOUND)
+    message(FATAL_ERROR "Could not find any of the specified Fortran compilers: ${FORTRAN_COMPILERS}")
 endif()
 
 project(sheap

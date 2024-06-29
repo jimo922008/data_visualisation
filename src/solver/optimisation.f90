@@ -215,11 +215,13 @@ CONTAINS
 
          low_pos_vec = low_pos_vec - step_size*gradient_vec_noise
 
-         gradient_norm = dot_product(step_size*gradient_vec, gradient_vec_noise)
+         gradient_norm = abs(dot_product(step_size*gradient_vec, gradient_vec_noise))
 
          running_gradient_norm = running_gradient_norm + (log10(gradient_norm) - running_gradient_norm)/min(i, 100)
 
          write (*, *) ' Gradient norm: ', gradient_norm, 'running gradient norm', running_gradient_norm, ' Step size: ', step_size
+
+         write (*,*) 'gradient vec', sum(gradient_vec), 'gradient vec noise', sum(gradient_vec_noise)
 
       end do
 
@@ -237,13 +239,14 @@ CONTAINS
 
          low_pos_vec = low_pos_vec - step_size*gradient_vec_noise
 
-         gradient_norm = dot_product(step_size*gradient_vec, gradient_vec_noise)
+         gradient_norm = abs(dot_product(step_size*gradient_vec, gradient_vec_noise))
 
          running_gradient_norm = running_gradient_norm + (log10(gradient_norm) - running_gradient_norm)/100
 
          call handle_growth_phase(j, low_results%point_radius, optimisation_params, growth_step_limit)
 
          write (*, *) ' Gradient norm: ', gradient_norm, 'running gradient norm', running_gradient_norm, ' Step size: ', step_size
+         
          write (*, *) 'point radius', sum(low_results%point_radius)
 
       end do
@@ -456,7 +459,7 @@ CONTAINS
 
       ! Internal variables
       real(kind=sp), allocatable                 :: noise_vector(:)
-      real(kind=sp)                              :: d
+      real(kind=sp)                              :: d, e
 
       allocate (gradient_vec_noise(size(gradient_vec)))
       allocate (noise_vector(size(gradient_vec)))
@@ -464,9 +467,9 @@ CONTAINS
 
       noise_vector = 0.0_sp
 
-      call random_number(d)
+      call random_number(e)
 
-      d = r*d**(1/real(size(gradient_vec), sp))
+      d = r*e**(1/real(size(gradient_vec), sp))
 
       call random_add_noise(noise_vector, 1.0_sp)
 
