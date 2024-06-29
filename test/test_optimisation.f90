@@ -38,8 +38,10 @@ contains
       call test_remove_duplicates(data, results, high_dim_params)
       call test_find_sigma(results, high_dim_params)
       call test_high_dimension_distribution(data, results, high_dim_params)
+      call low_dimension_init(data, low_dim_params, results, low_results)
+      call low_dimension_normalisation(results, low_results, low_dim_params)
       call test_hard_sphere_initialisation(results, low_results, low_dim_params)
-
+      call test_tpsd(data, results, low_results, high_dim_params, low_dim_params, optimisation_params)
    end subroutine run_tests
 
    subroutine test_read_file(data, file_name)
@@ -162,5 +164,33 @@ contains
       end if
 
    end subroutine test_hard_sphere_initialisation
+
+   subroutine test_tpsd(data, results, low_results, high_dim_params, low_dim_params, optimisation_params)
+
+      type(file_data), intent(inout) :: data
+      type(high_dim_results), intent(in) :: results
+      type(low_dim_results), intent(inout) :: low_results
+      type(low_dim_parameters), intent(inout) :: low_dim_params
+      type(high_dim_parameters), intent(inout) :: high_dim_params
+      type(optimisation_parameters), intent(in) :: optimisation_params
+
+      real(kind=sp) :: cost
+
+      high_dim_params%perplexity = 30.0
+      low_dim_params%low_dimension = 2
+      low_dim_params%sphere_radius = 0.01_sp
+
+      call tpsd(data, results, low_results, low_dim_params, optimisation_params)
+
+      call calculate_cost(results, low_results, low_dim_params, cost)
+
+      if (cost - 2.5 > 0.1) then
+         print *, '-FAILED: tpsd test.'
+         stop
+      else
+         print *, '-PASSED: tpsd test.'
+      end if
+
+   end subroutine test_tpsd
 
 end program test_optimisation

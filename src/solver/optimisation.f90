@@ -15,7 +15,7 @@ MODULE optimisation
    PUBLIC :: loss_gradient_position
    PUBLIC :: loss_gradient_core
    PUBLIC :: gradient_vec_addnoise
-
+   PUBLIC :: calculate_cost
    real(kind=sp) :: z, inv_z
 
 CONTAINS
@@ -489,6 +489,58 @@ CONTAINS
       if (j > (optimisation_params%growth_steps + 100)) growth_step_limit = .false.
 
    end subroutine handle_growth_phase
+
+   subroutine calculate_cost(results, low_results, low_dim_params, cost)
+
+      IMPLICIT NONE
+
+      ! Input variables
+      TYPE(high_dim_results), intent(in)             :: results
+      TYPE(low_dim_results), intent(in)              :: low_results
+      TYPE(low_dim_parameters), intent(in)           :: low_dim_params
+
+      ! Output variables
+      real(kind=sp), intent(out)                     :: cost
+
+      ! Internal variables
+      real(kind=sp), allocatable                     :: pos(:)
+      real(kind=sp)                                  :: cost_zero
+      real(kind=sp)                                  :: rij2, qij, dist
+      integer                                        :: i, j
+
+      allocate (pos(low_dim_params%low_dimension))
+
+      cost_zero = 0.0_sp
+
+      !$omp parallel do reduction(+:cost_zero) collapse(2)
+      do i = 1, results%reduced_number_points
+         do j = i + 1, results%reduced_number_points
+            if (results%pij(j, i) > 0 .and. results%pij(j, i) < 1) then
+ cost_zero = cost_zero + results%pij(j, i)*log(results%pij(j, i))*2.0_sp + (1 - results%pij(j, i))*log(1 - results%pij(j, i))*2.0_sp
+            else if (results%pij(i, j) > 1) then
+               cost_zero = cost_zero + results%pij(j, i)*log(results%pij(j, i))*2.0_sp
+            else if (results%pij(i, j) < 0) then
+               cost_zero = cost_zero + (1 - results%pij(j, i))*log(1 - results%pij(j, i))*2.0_sp
+            end if
+         end do
+      end do
+      !$omp end parallel do
+
+      cost = cost_zero
+
+      do i = 1, results%reduced_number_points
+         do j = i + 1, results%reduced_number_points
+            pos = low_results%low_dimension_position(:, i) - low_results%low_dimension_position(:, j)
+            rij2 = sum(pos*pos)
+            qij = 1.0_sp/(1.0_sp + rij2)*inv_z
+            dist = sqrt(rij2)
+            cost = cost - results%pij(j, i)*log(qij)*2.0_sp - (1 - results%pij(j, i))*log(1 - qij)*2.0_sp
+         end do
+      end do
+
+      deallocate (pos)
+
+   end subroutine calculate_cost
 
 end MODULE optimisation
 

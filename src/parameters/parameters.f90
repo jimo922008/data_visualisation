@@ -14,7 +14,7 @@ module parameters
    end type high_dim_parameters
 
    type :: low_dim_parameters
-      integer                         :: low_dimension = 3
+      integer                         :: low_dimension = 2
       real(kind=sp)                   :: projection_compression = 10.0_sp
       real(kind=sp)                   :: sphere_radius = 0.01_sp
    end type low_dim_parameters
