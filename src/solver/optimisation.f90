@@ -211,7 +211,7 @@ CONTAINS
 
          call gradient_vec_addnoise(gradient_vec, gradient_vec_noise, 1e-2_sp)
 
-  call calculate_stepsize(low_pos_vec, gradient_vec_noise, step_size, init=((i == 1) .or. (i == (optimisation_params%exag_cutoff))))
+         call calculate_stepsize(low_pos_vec, gradient_vec_noise, step_size, init=((i == 1) .or. (i == (optimisation_params%exag_cutoff))))
 
          low_pos_vec = low_pos_vec - step_size*gradient_vec_noise
 
