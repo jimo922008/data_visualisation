@@ -168,7 +168,9 @@ contains
             low_perplexity = calculating_perplexity(low_sigma, i, high_dist_matrix)
          end do
 
+         !$omp critical
          call bisection_method(i, perplexity, low_sigma, high_sigma, tolerance, high_dist_matrix, sigma(i))
+         !$omp end critical
          print *, 'sigma', i, sigma(i)
       end do
       !$omp end parallel do

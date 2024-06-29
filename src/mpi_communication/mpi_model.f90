@@ -83,7 +83,7 @@ contains
          cost_criteria = (optimisation_params%threshold)*(optimisation_params%growth_coeff)
 
          do while ((((running_gradient_norm > log10(cost_criteria) .or. (i < 100 + optimisation_params%exag_cutoff))) .and. (i < optimisation_params%maxsteps)))
-
+       
             i = i + 1
 
             exaggeration = merge(1.0_sp, optimisation_params%exaggeration_init, i > optimisation_params%exag_cutoff)

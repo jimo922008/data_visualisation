@@ -187,7 +187,7 @@ CONTAINS
       real(kind=sp)                                  :: step_size, gradient_norm, running_gradient_norm
       real(kind=sp), allocatable                     :: low_pos_vec(:)
       real(kind=sp), allocatable                     :: gradient_vec(:), gradient_vec_noise(:)
-      character(len=128)                             :: filename
+
 
       allocate (low_pos_vec((low_dim_params%low_dimension)*(results%reduced_number_points)))
       allocate (gradient_vec(size(low_pos_vec)))
@@ -202,7 +202,7 @@ CONTAINS
       cost_criteria = (optimisation_params%threshold)*(optimisation_params%growth_coeff)
 
       do while ((((running_gradient_norm > log10(cost_criteria) .or. (i < 100 + (optimisation_params%exag_cutoff)))) .and. (i < (optimisation_params%maxsteps))))
-
+         
          i = i + 1
 
          exaggeration = merge(1.0_sp, (optimisation_params%exaggeration_init), i > (optimisation_params%exag_cutoff))
@@ -226,6 +226,7 @@ CONTAINS
       write (*, *) 'Growth phase'
 
       do while (((running_gradient_norm > log10(optimisation_params%threshold)) .or. (growth_step_limit)) .and. (i + j < optimisation_params%maxsteps))
+
          j = j + 1
 
          call loss_gradient_core(low_pos_vec, gradient_vec, results, low_dim_params, low_results, optimisation_params)
