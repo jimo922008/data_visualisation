@@ -35,7 +35,7 @@ Other functions include:
 
 (6) Generate documentation: by running the command 
 ```bash
-doxygen build/Doxyfile.doc
+doxygen build/Doxyfile
 ```
 
 (7) Run tests: by running the command 

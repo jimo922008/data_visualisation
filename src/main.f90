@@ -1,3 +1,14 @@
+!> @brief Main program for the TPSD code
+!> @details Stochastic Hyperspace Embedding And Projection (SHEAP) is a dimensionality reduction method designed for visualising potential energy surfaces.
+!! Computational structure prediction can assist the discovery of new materials. One searches for the most stable configurations of a given set of atomic building blocks, 
+!! which correspond to the deepest regions of an energy landscape—the system's energy as a function of the relative positions of its atoms. 
+!! To explore these landscapes efficiently, it is important to understand their topologies. However, they exist in spaces with very large numbers of dimensions, 
+!! making them difficult to visualise. SHEAP uses dimensionality reduction through manifold learning to effectively visualise the distribution of stable structures across a high-dimensional energy landscape.
+!! This program reads in a file containing the pairwise distance of a set of atoms and their corresponding properties.
+!! It then uses SHEAP to reduce the dimensionality of the data and writes the results to a file.
+
+
+
 program main
 
    USE omp_lib

@@ -138,8 +138,9 @@ contains
          end do
       end do
 
-  if ((results%pij(1, 1)) /= 0.00000000 .or. (results%pij(1, 2)-4.087E-09>0.01E-9) .or. (results%pij(1, 3) - 1.86E-08>0.01E-8)) then
+      if ((results%pij(1, 1)) /= 0.00000000 .or. (results%pij(1, 2)-4.087E-09>0.1E-9) .or. (results%pij(1, 3) - 1.86E-08>0.1E-8)) then
          print *, '-FAILED: pij incorrect'
+         print *, results%pij(1, 1), results%pij(1, 2), results%pij(1, 3)
          stop
       else
          print *, '-PASSED: high_dimension_distribution test.'

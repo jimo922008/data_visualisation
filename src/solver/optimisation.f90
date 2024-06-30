@@ -221,8 +221,6 @@ CONTAINS
 
          write (*, *) ' Gradient norm: ', gradient_norm, 'running gradient norm', running_gradient_norm, ' Step size: ', step_size
 
-         write (*,*) 'gradient vec', sum(gradient_vec), 'gradient vec noise', sum(gradient_vec_noise)
-
       end do
 
       write (*, *) 'Growth phase'
@@ -247,9 +245,7 @@ CONTAINS
 
          write (*, *) ' Gradient norm: ', gradient_norm, 'running gradient norm', running_gradient_norm, ' Step size: ', step_size
 
-         write (*,*) 'gradient vec', sum(gradient_vec), 'gradient vec noise', sum(gradient_vec_noise)
-
-         write (*, *) 'point radius', sum(low_results%point_radius)
+         write (*, *) 'radius', sum(low_results%point_radius)
 
       end do
 
@@ -308,10 +304,13 @@ CONTAINS
       ! Internal variables
       real(kind=sp), allocatable                :: vec(:), pos(:)
       real(kind=sp)                             :: qij, rij2
-      integer                                   :: i, j, index_i, index_ii, index_j, index_jj, index
+      integer                                   :: i, j, index_i, index_ii, index_j, index_jj, index, stat
 
-      allocate (pos(low_dim_params%low_dimension))
-      allocate (vec(low_dim_params%low_dimension))
+      allocate (pos(low_dim_params%low_dimension), stat=stat)
+      if (stat /= 0) stop 'Error allocating pos.'
+
+      allocate (vec(low_dim_params%low_dimension), stat=stat)
+      if (stat /= 0) stop 'Error allocating vec.'
 
       gradient_vec = 0.0_sp
       index = results%reduced_number_points
@@ -333,8 +332,10 @@ CONTAINS
       end do
       !$omp end parallel do
 
-      deallocate (pos)
-      deallocate (vec)
+      deallocate (pos, stat=stat)
+      if (stat /= 0) stop 'Error deallocating pos.'
+      deallocate (vec, stat=stat)
+      if (stat /= 0) stop 'Error deallocating vec.'
 
    end subroutine loss_gradient_position
 
@@ -358,10 +359,13 @@ CONTAINS
       ! Internal variables
       real(kind=sp), allocatable    :: vec(:), pos(:)
       real(kind=sp)                 :: rij2, qij, dist
-      integer                       :: i, j, index_i, index_ii, index_j, index_jj, index
+      integer                       :: i, j, index_i, index_ii, index_j, index_jj, index, stat
 
-      allocate (pos(low_dim_params%low_dimension))
-      allocate (vec(low_dim_params%low_dimension))
+      allocate (pos(low_dim_params%low_dimension), stat=stat)
+      if (stat /= 0) stop 'Error allocating pos.'
+
+      allocate (vec(low_dim_params%low_dimension), stat=stat)
+      if (stat /= 0) stop 'Error allocating vec.'
 
       gradient_vec = 0.0_sp
       index = results%reduced_number_points
@@ -391,8 +395,11 @@ CONTAINS
       end do
       !$omp end parallel do
 
-      deallocate (pos)
-      deallocate (vec)
+      deallocate (pos, stat=stat)
+      if (stat /= 0) stop 'Error deallocating pos.'
+
+      deallocate (vec, stat=stat)
+      if (stat /= 0) stop 'Error deallocating vec.'
 
    end subroutine loss_gradient_core
 
@@ -424,13 +431,19 @@ CONTAINS
 
       else
 
+         step_size = default_step_size
+
          position_change = current_position - previous_position
          gradient_change = current_gradient - previous_gradient
 
          gradient_change_magnitude = dot_product(gradient_change, gradient_change)
          position_gradient_dot_product = dot_product(position_change, gradient_change)
 
-         step_size = abs(position_gradient_dot_product/gradient_change_magnitude)
+         if (gradient_change_magnitude > 0) then
+            step_size = abs(position_gradient_dot_product / gradient_change_magnitude)
+         else 
+            write (*, *) 'Warning: gradient change magnitude is zero.'
+         end if
 
          step_size = max(step_size, default_step_size)
 
@@ -465,15 +478,14 @@ CONTAINS
 
       allocate (gradient_vec_noise(size(gradient_vec)))
       allocate (noise_vector(size(gradient_vec)))
+
       gradient_vec_noise = 0.0_sp
 
       noise_vector = 0.0_sp
 
       call random_number(e)
 
-      print *, 'e', e
-
-      if (e == 0.0_sp) e = 0.1_sp
+      e = max(epsilon(1.0_sp), e)
 
       d = r*e**(1/real(size(gradient_vec), sp))
 
@@ -481,18 +493,33 @@ CONTAINS
 
       norm = norm2(noise_vector)
 
-      print *, 'norm', norm
-
-      if (norm > 0 .and. norm < 100) then
+      if (norm > 0.0_sp .and. norm < 100.0_sp) then
 
          noise_vector = d*noise_vector/norm
 
          gradient_vec_noise = gradient_vec*(1 + noise_vector)
       
       else
-            
-         gradient_vec_noise = gradient_vec
+         
+         write (*,*) "Warning: Norm of noise_vector is incorrect. Retrying with fallback."
 
+         d = r * 0.1 ** (1.0_sp / real(size(gradient_vec), sp))
+   
+         call random_add_noise(noise_vector, 1.0_sp)
+   
+         norm = norm2(noise_vector)
+
+         if (norm > 0.0_sp .and. norm < 100.0_sp) then
+
+            noise_vector = d*noise_vector/norm
+
+            gradient_vec_noise = gradient_vec*(1 + noise_vector)
+
+         else 
+
+            write (*,*) "Error: Failed to generate a valid noise_vector, stop the programme now and please re-run."
+            stop
+         end if
       end if
 
    end subroutine gradient_vec_addnoise
