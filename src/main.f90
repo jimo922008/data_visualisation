@@ -1,4 +1,5 @@
-!> @brief Main program for the TPSD code
+!> \mainpage SHEAP
+!> @brief SHEAP MPI implementation
 !> @details Stochastic Hyperspace Embedding And Projection (SHEAP) is a dimensionality reduction method designed for visualising potential energy surfaces.
 !! Computational structure prediction can assist the discovery of new materials. One searches for the most stable configurations of a given set of atomic building blocks, 
 !! which correspond to the deepest regions of an energy landscape—the system's energy as a function of the relative positions of its atoms. 
@@ -6,8 +7,47 @@
 !! making them difficult to visualise. SHEAP uses dimensionality reduction through manifold learning to effectively visualise the distribution of stable structures across a high-dimensional energy landscape.
 !! This program reads in a file containing the pairwise distance of a set of atoms and their corresponding properties.
 !! It then uses SHEAP to reduce the dimensionality of the data and writes the results to a file.
-
-
+!! The program is parallelised using OpenMP and MPI. The MPI implementation is used to distribute the data across multiple nodes, while OpenMP is used to parallelise the calculations on each node.
+!! The program is designed to be run on a high-performance computing cluster, as well as on a PC.
+!! \verbatim
+!! '                            8888              '
+!! '               8888888  8888    88            '
+!! '              88      88          888         '
+!! '             8                      8         '
+!! '             88                     88        '
+!! '              88 888         88   888         '
+!! '         .8888888---888888888--88888888.      '
+!! '       8888  888-----------------88   888     '
+!! '      88     888--8888-----8888--888    88    '
+!! '     88     888---88 8-----88 8--888      8   '
+!! '    88      8 8---8888-----8888---88       8  '
+!! '    8       8 8-------------------88       8  '
+!! '    88      8 8-------------------8 88    88  '
+!! '     88    88 8------------------8  88   88   '
+!! '       8888   88----88-----88----8    8888    '
+!! '               88-----8---8----88             '
+!! '                88------------88              '
+!! '                  88--------88                '
+!! '                    "888888"                  '
+!! '                                              '
+!! '           888                                '
+!! '           888                                '
+!! '           888                                '
+!! '  .d8888b  88888b.   .d88b.   8888b.  88888b. '
+!! '  888      888 "88b d88  88b     "88b 888 "88b'
+!! '  "888888. 888  888 88888888 .d888888 888  888'
+!! '       888 888  888 88b.     888  888 888 d88P'
+!! '   888888" 888  888  "88888  "8888888 88888P" '
+!! '                                      888     '
+!! '                                      888     '
+!! '                                      888     '
+!! '                                              '
+!! '   Authors: Ben Shires (bs511@cam.ac.uk)      '
+!! '            Chris Pickard (cjp20@cam.ac.uk)   '
+!! '            Mo Ji (mj425@cam.ac.uk)           '
+!! '                 2019-2024 (c)                '
+!! '                                              '
+!! \endverbatim
 
 program main
 
