@@ -2,6 +2,6 @@ build
 bin
 docs
 *.xyz
-*.png
-*.dat
 *.xyz
+*.ipynb
+results
