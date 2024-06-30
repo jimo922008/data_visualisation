@@ -239,12 +239,20 @@ contains
       ! Input variables
       real(kind=sp), intent(in)                  :: variance
       real(kind=sp), dimension(:), intent(inout) :: vec
-      real(kind=sp), dimension(size(vec))        :: u, v
+      real(kind=sp)                              :: u, v
+      integer                                    :: i
 
-      call random_number(u)
-      call random_number(v)
+      do i = 1, size(vec)
 
-      vec = vec + sqrt(-2.0_sp*log(u))*cos(2.0_sp*acos(-1.0_sp)*v)*variance
+         call random_number(u)
+         call random_number(v)
+
+         u = max (epsilon(1.0_sp), u)
+         v = max (epsilon(1.0_sp), v)
+
+         vec(i) = vec(i) + sqrt(-2.0_sp*log(u))*cos(2.0_sp*acos(-1.0_sp)*v)*variance
+
+      end do
 
    end subroutine random_add_noise
 

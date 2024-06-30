@@ -246,7 +246,9 @@ CONTAINS
          call handle_growth_phase(j, low_results%point_radius, optimisation_params, growth_step_limit)
 
          write (*, *) ' Gradient norm: ', gradient_norm, 'running gradient norm', running_gradient_norm, ' Step size: ', step_size
-         
+
+         write (*,*) 'gradient vec', sum(gradient_vec), 'gradient vec noise', sum(gradient_vec_noise)
+
          write (*, *) 'point radius', sum(low_results%point_radius)
 
       end do
@@ -459,7 +461,7 @@ CONTAINS
 
       ! Internal variables
       real(kind=sp), allocatable                 :: noise_vector(:)
-      real(kind=sp)                              :: d, e
+      real(kind=sp)                              :: d, e, norm
 
       allocate (gradient_vec_noise(size(gradient_vec)))
       allocate (noise_vector(size(gradient_vec)))
@@ -469,13 +471,29 @@ CONTAINS
 
       call random_number(e)
 
+      print *, 'e', e
+
+      if (e == 0.0_sp) e = 0.1_sp
+
       d = r*e**(1/real(size(gradient_vec), sp))
 
       call random_add_noise(noise_vector, 1.0_sp)
 
-      noise_vector = d*noise_vector/norm2(noise_vector)
+      norm = norm2(noise_vector)
 
-      gradient_vec_noise = gradient_vec*(1 + noise_vector)
+      print *, 'norm', norm
+
+      if (norm > 0 .and. norm < 100) then
+
+         noise_vector = d*noise_vector/norm
+
+         gradient_vec_noise = gradient_vec*(1 + noise_vector)
+      
+      else
+            
+         gradient_vec_noise = gradient_vec
+
+      end if
 
    end subroutine gradient_vec_addnoise
 
