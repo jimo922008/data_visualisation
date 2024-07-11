@@ -1,7 +1,7 @@
 ## Installation
 (1) Download files from git repository.
 
-https://gitlab.developers.cam.ac.uk/phy/data-intensive-science-mphil/projects/mj425.git
+https://github.com/jimo922008/data_visualisation.git
 
 (2) Generate makefile: by running the command:
 ```bash
