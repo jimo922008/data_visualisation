@@ -3,5 +3,6 @@ bin
 docs
 *.xyz
 *.xyz
+*.txt
 *.ipynb
 results
