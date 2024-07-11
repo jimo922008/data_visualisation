@@ -1,7 +1,7 @@
 ## Installation
 (1) Download files from git repository.
 
-https://github.com/jimo922008/data_visualisation.git
+https://github.com/jimo922008/sheap_mpi.git
 
 (2) Generate makefile: by running the command:
 ```bash
