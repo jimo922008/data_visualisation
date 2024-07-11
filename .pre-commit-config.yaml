@@ -1,0 +1,47 @@
+repos:
+  - repo: http://github.com/pre-commit/pre-commit-hooks
+    rev: v2.3.0
+    hooks: 
+      - id : check-yaml
+      - id : no-commit-to-branch
+        args: [--branch, main]
+  
+
+  - repo: local
+    hooks:
+
+      - id: fprettify
+        name: formatting code 
+        language: python
+        entry: fprettify
+        types: [fortran]
+        always_run: true
+
+      - id: cmake-gen-release-target
+        name: CMake generate target 
+        language: system
+        entry: cmake
+        args: [-S, ., -B, build]
+        exclude: '.*'
+        always_run: true
+
+      - id: cmake-release-build
+        name: CMake build target
+        language: system
+        entry: cmake
+        args: [--build, build]
+        exclude: '.*'
+        always_run: true
+
+      - id: ctest 
+        name: CTest
+        language: system
+        entry: ctest
+        args: [--test-dir, build]
+        exclude: '.*'
+        always_run: true
+
+
+
+
+        
