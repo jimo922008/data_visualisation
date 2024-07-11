@@ -4,6 +4,5 @@ docs
 *.xyz
 *.xyz
 *.txt
-*.vec
 *.ipynb
 results
